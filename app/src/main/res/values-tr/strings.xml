@@ -538,4 +538,6 @@ Bir kullanıcı üzerindeki zaman aşımını kaldırır.</string>
     <string name="redeemed">Redeemed %s</string>
     <string name="user_redeemed">%1$s redeemed %2$s</string>
     <string name="enable_pubsub">Enable PubSub</string>
+    <string name="points_earned">Received %d channel points</string>
+    <string name="points_notify">Notify when earning channel points</string>
 </resources>

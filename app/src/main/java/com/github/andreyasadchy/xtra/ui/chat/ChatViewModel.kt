@@ -70,6 +70,7 @@ class ChatViewModel @Inject constructor(
     val roomState = MutableLiveData<RoomState>()
     val command = MutableLiveData<Command>()
     val reward = MutableLiveData<ChatMessage>()
+    val pointsEarned = MutableLiveData<PointsEarned>()
 
     private val _chatMessages by lazy {
         MutableLiveData<MutableList<ChatMessage>>().apply { value = Collections.synchronizedList(ArrayList(MAX_ADAPTER_COUNT + 1)) }
@@ -89,19 +90,21 @@ class ChatViewModel @Inject constructor(
     val chatters: Collection<Chatter>
         get() = (chat as LiveChatController).chatters.values
 
-    fun startLive(useSSl: Boolean, usePubSub: Boolean, user: User, helixClientId: String?, gqlClientId: String, channelId: String?, channelLogin: String?, channelName: String?, showUserNotice: Boolean, showClearMsg: Boolean, showClearChat: Boolean, enableRecentMsg: Boolean? = false, recentMsgLimit: String? = null) {
+    fun startLive(useSSl: Boolean, usePubSub: Boolean, user: User, helixClientId: String?, gqlClientId: String, channelId: String?, channelLogin: String?, channelName: String?, showUserNotice: Boolean, showClearMsg: Boolean, showClearChat: Boolean, notifyPoints: Boolean, enableRecentMsg: Boolean? = false, recentMsgLimit: String? = null) {
         if (chat == null && channelLogin != null && channelName != null) {
             chat = LiveChatController(
                 useSSl = useSSl,
                 usePubSub = usePubSub,
                 user = user,
                 helixClientId = helixClientId,
+                gqlClientId = gqlClientId,
                 channelId = channelId,
                 channelLogin = channelLogin,
                 displayName = channelName,
                 showUserNotice = showUserNotice,
                 showClearMsg = showClearMsg,
-                showClearChat = showClearChat
+                showClearChat = showClearChat,
+                notifyPoints = notifyPoints
             )
             if (channelId != null) {
                 init(
@@ -269,12 +272,14 @@ class ChatViewModel @Inject constructor(
             private val usePubSub: Boolean,
             private val user: User,
             private val helixClientId: String?,
+            private val gqlClientId: String?,
             private val channelId: String?,
             private val channelLogin: String,
             displayName: String,
             private val showUserNotice: Boolean,
             private val showClearMsg: Boolean,
-            private val showClearChat: Boolean) : ChatController(), OnUserStateReceivedListener, OnRoomStateReceivedListener, OnCommandReceivedListener, OnRewardReceivedListener {
+            private val showClearChat: Boolean,
+            private val notifyPoints: Boolean) : ChatController(), OnUserStateReceivedListener, OnRoomStateReceivedListener, OnCommandReceivedListener, OnRewardReceivedListener, OnPointsEarnedListener, OnClaimPointsListener {
 
         private var chat: LiveChatThread? = null
         private var loggedInChat: LoggedInChatThread? = null
@@ -310,7 +315,7 @@ class ChatViewModel @Inject constructor(
                 loggedInChat = TwitchApiHelper.startLoggedInChat(useSSl, user.login, user.gqlToken?.nullIfEmpty() ?: user.helixToken, channelLogin, showUserNotice, showClearMsg, showClearChat, usePubSub, this, this, this, this, this)
             }
             if (usePubSub && !channelId.isNullOrBlank()) {
-                TwitchApiHelper.startPubSub(channelId, viewModelScope, this, this)
+                TwitchApiHelper.startPubSub(channelId, user.id, user.gqlToken, notifyPoints, viewModelScope, this, this, this, this)
             }
         }
 
@@ -392,6 +397,16 @@ class ChatViewModel @Inject constructor(
 
         override fun onReward(message: ChatMessage) {
             reward.postValue(message)
+        }
+
+        override fun onPointsEarned(message: PointsEarned) {
+            pointsEarned.postValue(message)
+        }
+
+        override fun onClaim(message: Claim) {
+            viewModelScope.launch {
+                repository.claimPoints(gqlClientId, user.gqlToken, message.channelId, message.claimId)
+            }
         }
 
         fun addEmotes(list: List<Emote>) {

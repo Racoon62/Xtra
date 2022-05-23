@@ -6,7 +6,9 @@ import org.json.JSONObject
 
 class PubSubListenerImpl(
     private val callback: OnChatMessageReceivedListener,
-    private val callbackReward: OnRewardReceivedListener) : PubSubWebSocket.OnMessageReceivedListener {
+    private val callbackReward: OnRewardReceivedListener,
+    private val callbackPointsEarned: OnPointsEarnedListener,
+    private val callbackClaim: OnClaimPointsListener) : PubSubWebSocket.OnMessageReceivedListener {
 
     override fun onPointReward(text: String) {
         val data = if (text.isNotBlank()) JSONObject(text).optJSONObject("data") else null
@@ -39,5 +41,28 @@ class PubSubListenerImpl(
         } else {
             callbackReward.onReward(pointReward)
         }
+    }
+
+    override fun onPointsEarned(text: String) {
+        val data = if (text.isNotBlank()) JSONObject(text).optJSONObject("data") else null
+        val message = data?.optString("message")?.let { if (it.isNotBlank()) JSONObject(it) else null }
+        val messageData = message?.optString("data")?.let { if (it.isNotBlank()) JSONObject(it) else null }
+        val pointGain = messageData?.optString("point_gain")?.let { if (it.isNotBlank()) JSONObject(it) else null }
+        callbackPointsEarned.onPointsEarned(PointsEarned(
+            pointsGained = pointGain?.optInt("total_points"),
+            timestamp = messageData?.optString("timestamp")?.let { TwitchApiHelper.parseIso8601Date(it) },
+            fullMsg = text
+        ))
+    }
+
+    override fun onClaimPoints(text: String) {
+        val data = if (text.isNotBlank()) JSONObject(text).optJSONObject("data") else null
+        val message = data?.optString("message")?.let { if (it.isNotBlank()) JSONObject(it) else null }
+        val messageData = message?.optString("data")?.let { if (it.isNotBlank()) JSONObject(it) else null }
+        val claim = messageData?.optString("claim")?.let { if (it.isNotBlank()) JSONObject(it) else null }
+        callbackClaim.onClaim(Claim(
+            claimId = claim?.optString("id"),
+            channelId = claim?.optString("channel_id")
+        ))
     }
 }

@@ -11,12 +11,16 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class PubSubWebSocket(
-    channelId: String,
+    private val channelId: String,
+    private val userId: String?,
+    private val gqlToken: String?,
+    private val notifyPoints: Boolean,
     private val coroutineScope: CoroutineScope,
     private val listener: OnMessageReceivedListener) {
     private var client: OkHttpClient? = null
     private var socket: WebSocket? = null
     private var pongReceived = false
+    private val loggedInTopics = listOf("community-points-user-v1.$userId")
     private val topics = listOf("community-points-channel-v1.$channelId")
 
     fun connect() {
@@ -43,7 +47,15 @@ class PubSubWebSocket(
         val message = JSONObject().apply {
             put("type", "LISTEN")
             put("data", JSONObject().apply {
-                put("topics", JSONArray().apply { topics.forEach { put(it) } })
+                put("topics", JSONArray().apply {
+                    topics.forEach { put(it) }
+                    if (!userId.isNullOrBlank() && !gqlToken.isNullOrBlank()) {
+                        loggedInTopics.forEach { put(it) }
+                    }
+                })
+                if (!userId.isNullOrBlank() && !gqlToken.isNullOrBlank()) {
+                    put("auth_token", gqlToken)
+                }
             })
         }.toString()
         socket?.send(message)
@@ -81,10 +93,7 @@ class PubSubWebSocket(
     private inner class PubSubListener : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             listen()
-            coroutineScope.launch {
-                delay(270000)
-                ping()
-            }
+            ping()
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
@@ -93,9 +102,22 @@ class PubSubWebSocket(
                 "MESSAGE" -> {
                     val data = json.optString("data").let { if (it.isNotBlank()) JSONObject(it) else null }
                     val topic = data?.optString("topic")
-                    val messageType = data?.optString("message")?.let { if (it.isNotBlank()) JSONObject(it) else null }?.optString("type")
+                    val message = data?.optString("message")?.let { if (it.isNotBlank()) JSONObject(it) else null }
+                    val messageType = message?.optString("type")
                     when {
                         (topic?.startsWith("community-points-channel") == true) && (messageType?.startsWith("reward-redeemed") == true) -> listener.onPointReward(text)
+                        topic?.startsWith("community-points-user") == true -> {
+                            when {
+                                (messageType?.startsWith("points-earned") == true && notifyPoints) -> {
+                                    val messageData = message.optString("data").let { if (it.isNotBlank()) JSONObject(it) else null }
+                                    val messageChannelId = messageData?.optString("channel_id")
+                                    if (channelId == messageChannelId) {
+                                        listener.onPointsEarned(text)
+                                    }
+                                }
+                                messageType?.startsWith("claim-available") == true -> listener.onClaimPoints(text)
+                            }
+                        }
                     }
                 }
                 "PONG" -> pongReceived = true
@@ -106,5 +128,7 @@ class PubSubWebSocket(
 
     interface OnMessageReceivedListener {
         fun onPointReward(text: String)
+        fun onPointsEarned(text: String)
+        fun onClaimPoints(text: String)
     }
 }

@@ -608,6 +608,25 @@ class GraphQLRepository @Inject constructor(private val graphQL: GraphQLApi) {
         return graphQL.getFollowingGame(clientId, token, json)
     }
 
+    suspend fun loadClaimPoints(clientId: String?, token: String?, channelId: String?, claimId: String?) {
+        val json = JsonObject().apply {
+            addProperty("operationName", "ClaimCommunityPoints")
+            add("variables", JsonObject().apply {
+                add("input", JsonObject().apply {
+                    addProperty("channelID", channelId)
+                    addProperty("claimID", claimId)
+                })
+            })
+            add("extensions", JsonObject().apply {
+                add("persistedQuery", JsonObject().apply {
+                    addProperty("version", 1)
+                    addProperty("sha256Hash", "46aaeebe02c99afdf4fc97c7c0cba964124bf6b0af229395f1f6d1feed05b3d0")
+                })
+            })
+        }
+        return graphQL.getClaimPoints(clientId, token, json)
+    }
+
     suspend fun loadChannelPanel(channelId: String): String? = withContext(Dispatchers.IO) {
         Log.d(TAG, "Loading panel for channel: $channelId")
         val array = JsonArray(1)

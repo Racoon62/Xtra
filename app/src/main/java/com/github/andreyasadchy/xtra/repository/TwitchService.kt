@@ -58,5 +58,6 @@ interface TwitchService {
     suspend fun unfollowUser(gqlClientId: String?, gqlToken: String?, userId: String?): Boolean
     suspend fun followGame(gqlClientId: String?, gqlToken: String?, gameId: String?): Boolean
     suspend fun unfollowGame(gqlClientId: String?, gqlToken: String?, gameId: String?): Boolean
+    suspend fun claimPoints(gqlClientId: String?, gqlToken: String?, channelId: String?, claimID: String?)
     fun loadTagsGQL(clientId: String?, getGameTags: Boolean, gameId: String?, gameName: String?, query: String?, coroutineScope: CoroutineScope): Listing<Tag>
 }

@@ -25,6 +25,7 @@ import com.github.andreyasadchy.xtra.ui.common.ChatAdapter
 import com.github.andreyasadchy.xtra.ui.view.SlidingLayout
 import com.github.andreyasadchy.xtra.util.*
 import com.github.andreyasadchy.xtra.util.chat.Command
+import com.github.andreyasadchy.xtra.util.chat.PointsEarned
 import com.github.andreyasadchy.xtra.util.chat.RoomState
 import kotlinx.android.extensions.LayoutContainer
 import kotlinx.android.synthetic.main.auto_complete_emotes_list_item.view.*
@@ -259,6 +260,12 @@ class ChatView : ConstraintLayout {
                 }
             }
         }
+    }
+
+    fun notifyPointsEarned(points: PointsEarned) {
+        val message = context.getString(R.string.points_earned, points.pointsGained)
+        adapter.messages?.add(LiveChatMessage(message = message, color = "#999999", isAction = true, timestamp = points.timestamp, fullMsg = points.fullMsg))
+        notifyMessageAdded()
     }
 
     fun addRecentMessages(list: List<LiveChatMessage>) {

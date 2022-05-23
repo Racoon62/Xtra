@@ -129,5 +129,8 @@ interface GraphQLApi {
     suspend fun getFollowingGame(@Header("Client-ID") clientId: String?, @Header("Authorization") token: String?, @Body json: JsonObject): FollowingGameDataResponse
 
     @POST(".")
+    suspend fun getClaimPoints(@Header("Client-ID") clientId: String?, @Header("Authorization") token: String?, @Body json: JsonObject)
+
+    @POST(".")
     suspend fun getChannelPanel(@Body json: JsonArray): Response<ResponseBody>
 }

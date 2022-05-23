@@ -293,6 +293,12 @@
 
     <SwitchPreferenceCompat
         android:defaultValue="false"
+        android:key="chat_pubsub_notify_points"
+        android:title="@string/points_notify"
+        app:iconSpaceReserved="false"/>
+
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
         android:key="chat_disable"
         android:title="@string/disable_chat"
         app:iconSpaceReserved="false"/>

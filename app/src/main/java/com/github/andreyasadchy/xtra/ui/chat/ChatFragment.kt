@@ -41,6 +41,7 @@ class ChatFragment : BaseNetworkFragment(), LifecycleListener, MessageClickedDia
         val showUserNotice = requireContext().prefs().getBoolean(C.CHAT_SHOW_USERNOTICE, true)
         val showClearMsg = requireContext().prefs().getBoolean(C.CHAT_SHOW_CLEARMSG, true)
         val showClearChat = requireContext().prefs().getBoolean(C.CHAT_SHOW_CLEARCHAT, true)
+        val notifyPoints = requireContext().prefs().getBoolean(C.CHAT_PUBSUB_NOTIFY_POINTS, false)
         val enableRecentMsg = requireContext().prefs().getBoolean(C.CHAT_RECENT, true)
         val recentMsgLimit = requireContext().prefs().getInt(C.CHAT_RECENT_LIMIT, 100)
         val disableChat = requireContext().prefs().getBoolean(C.CHAT_DISABLE, false)
@@ -49,7 +50,7 @@ class ChatFragment : BaseNetworkFragment(), LifecycleListener, MessageClickedDia
             false
         } else {
             if (isLive) {
-                viewModel.startLive(useSSl, usePubSub, user, helixClientId, gqlClientId, channelId, channelLogin, channelName, showUserNotice, showClearMsg, showClearChat, enableRecentMsg, recentMsgLimit.toString())
+                viewModel.startLive(useSSl, usePubSub, user, helixClientId, gqlClientId, channelId, channelLogin, channelName, showUserNotice, showClearMsg, showClearChat, notifyPoints, enableRecentMsg, recentMsgLimit.toString())
                 chatView.init(this)
                 chatView.setCallback(viewModel)
                 if (userIsLoggedIn) {
@@ -88,6 +89,7 @@ class ChatFragment : BaseNetworkFragment(), LifecycleListener, MessageClickedDia
             viewModel.roomState.observe(viewLifecycleOwner) { chatView.notifyRoomState(it) }
             viewModel.command.observe(viewLifecycleOwner) { chatView.notifyCommand(it) }
             viewModel.reward.observe(viewLifecycleOwner) { chatView.notifyReward(it) }
+            viewModel.pointsEarned.observe(viewLifecycleOwner) { chatView.notifyPointsEarned(it) }
         }
     }
 
