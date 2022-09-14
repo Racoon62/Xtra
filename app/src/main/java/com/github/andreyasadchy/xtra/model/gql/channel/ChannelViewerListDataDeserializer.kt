@@ -15,24 +15,28 @@ class ChannelViewerListDataDeserializer : JsonDeserializer<ChannelViewerListData
         val moderators = mutableListOf<String>()
         val vips = mutableListOf<String>()
         val viewers = mutableListOf<String>()
-        val dataJson = json.asJsonObject.getAsJsonObject("data").getAsJsonObject("channel").getAsJsonObject("chatters")
-        dataJson.getAsJsonArray("broadcasters").forEach {
-            val obj = it.asJsonObject
-            if (!(obj.get("login").isJsonNull)) { broadcasters.add(obj.getAsJsonPrimitive("login").asString) }
+        val dataJson = json.takeIf { it.isJsonObject }?.asJsonObject?.get("data")?.takeIf { it.isJsonObject }?.asJsonObject?.get("channel")?.takeIf { it.isJsonObject }?.asJsonObject?.get("chatters")?.takeIf { it.isJsonObject }?.asJsonObject
+        dataJson?.get("broadcasters")?.takeIf { it.isJsonArray }?.asJsonArray?.forEach { item ->
+            item?.takeIf { it.isJsonObject }?.asJsonObject?.let { obj ->
+                obj.get("login")?.takeIf { !it.isJsonNull }?.asString?.let { broadcasters.add(it) }
+            }
         }
-        dataJson.getAsJsonArray("moderators").forEach {
-            val obj = it.asJsonObject
-            if (!(obj.get("login").isJsonNull)) { moderators.add(obj.getAsJsonPrimitive("login").asString) }
+        dataJson?.get("moderators")?.takeIf { it.isJsonArray }?.asJsonArray?.forEach { item ->
+            item?.takeIf { it.isJsonObject }?.asJsonObject?.let { obj ->
+                obj.get("login")?.takeIf { !it.isJsonNull }?.asString?.let { moderators.add(it) }
+            }
         }
-        dataJson.getAsJsonArray("vips").forEach {
-            val obj = it.asJsonObject
-            if (!(obj.get("login").isJsonNull)) { vips.add(obj.getAsJsonPrimitive("login").asString) }
+        dataJson?.get("vips")?.takeIf { it.isJsonArray }?.asJsonArray?.forEach { item ->
+            item?.takeIf { it.isJsonObject }?.asJsonObject?.let { obj ->
+                obj.get("login")?.takeIf { !it.isJsonNull }?.asString?.let { vips.add(it) }
+            }
         }
-        dataJson.getAsJsonArray("viewers").forEach {
-            val obj = it.asJsonObject
-            if (!(obj.get("login").isJsonNull)) { viewers.add(obj.getAsJsonPrimitive("login").asString) }
+        dataJson?.get("viewers")?.takeIf { it.isJsonArray }?.asJsonArray?.forEach { item ->
+            item?.takeIf { it.isJsonObject }?.asJsonObject?.let { obj ->
+                obj.get("login")?.takeIf { !it.isJsonNull }?.asString?.let { viewers.add(it) }
+            }
         }
-        val count = if (!(dataJson.get("count").isJsonNull)) { dataJson.getAsJsonPrimitive("count").asInt } else null
+        val count = dataJson?.get("count")?.takeIf { !it.isJsonNull }?.asInt
         return ChannelViewerListDataResponse(ChannelViewerList(broadcasters, moderators, vips, viewers, count))
     }
 }

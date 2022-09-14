@@ -7,6 +7,7 @@ import com.github.andreyasadchy.xtra.FollowedGamesQuery
 import com.github.andreyasadchy.xtra.di.XtraModule
 import com.github.andreyasadchy.xtra.di.XtraModule_ApolloClientWithTokenFactory.apolloClientWithToken
 import com.github.andreyasadchy.xtra.model.helix.game.Game
+import com.github.andreyasadchy.xtra.model.helix.tag.Tag
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.LocalFollowGameRepository
 import com.github.andreyasadchy.xtra.util.C
@@ -20,7 +21,6 @@ class FollowedGamesDataSource(
     private val gqlApi: GraphQLRepository,
     private val apiPref: ArrayList<Pair<Long?, String?>?>,
     coroutineScope: CoroutineScope) : BasePositionalDataSource<Game>(coroutineScope) {
-    private var api: String? = null
 
     override fun loadInitial(params: LoadInitialParams, callback: LoadInitialCallback<Game>) {
         loadInitial(params, callback) {
@@ -30,22 +30,22 @@ class FollowedGamesDataSource(
             }
             val remote = try {
                 when (apiPref.elementAt(0)?.second) {
-                    C.GQL_QUERY -> if (!gqlToken.isNullOrBlank()) gqlQueryInitial(params) else throw Exception()
-                    C.GQL -> if (!gqlToken.isNullOrBlank()) gqlInitial(params) else throw Exception()
+                    C.GQL_QUERY -> if (!gqlToken.isNullOrBlank()) gqlQueryLoad() else throw Exception()
+                    C.GQL -> if (!gqlToken.isNullOrBlank()) gqlLoad() else throw Exception()
                     else -> throw Exception()
                 }
             } catch (e: Exception) {
                 try {
                     when (apiPref.elementAt(1)?.second) {
-                        C.GQL_QUERY -> if (!gqlToken.isNullOrBlank()) gqlQueryInitial(params) else throw Exception()
-                        C.GQL -> if (!gqlToken.isNullOrBlank()) gqlInitial(params) else throw Exception()
+                        C.GQL_QUERY -> if (!gqlToken.isNullOrBlank()) gqlQueryLoad() else throw Exception()
+                        C.GQL -> if (!gqlToken.isNullOrBlank()) gqlLoad() else throw Exception()
                         else -> throw Exception()
                     }
                 } catch (e: Exception) {
-                    mutableListOf()
+                    listOf()
                 }
             }
-            if (!remote.isNullOrEmpty()) {
+            if (remote.isNotEmpty()) {
                 for (i in remote) {
                     val item = list.find { it.id == i.id }
                     if (item == null) {
@@ -64,37 +64,43 @@ class FollowedGamesDataSource(
         }
     }
 
-    private suspend fun gqlQueryInitial(params: LoadInitialParams): List<Game> {
-        api = C.GQL_QUERY
-        val get1 = apolloClientWithToken(XtraModule(), gqlClientId, gqlToken)
-            .query(FollowedGamesQuery(id = Optional.Present(userId), first = Optional.Present(100))).execute().data?.user?.followedGames
+    private suspend fun gqlQueryLoad(): List<Game> {
+        val get1 = apolloClientWithToken(XtraModule(), gqlClientId, gqlToken).query(FollowedGamesQuery(
+            id = Optional.Present(userId),
+            first = Optional.Present(100)
+        )).execute().data?.user?.followedGames
         val get = get1?.nodes
         val list = mutableListOf<Game>()
         if (get != null) {
             for (i in get) {
-                list.add(
-                    Game(
-                        id = i?.id,
-                        name = i?.displayName,
-                        box_art_url = i?.boxArtURL,
-                        viewersCount = i?.viewersCount,
-                        broadcastersCount = i?.broadcastersCount
-                    )
-                )
+                val tags = mutableListOf<Tag>()
+                i?.tags?.forEach { tag ->
+                    tags.add(Tag(
+                        id = tag.id,
+                        name = tag.localizedName
+                    ))
+                }
+                list.add(Game(
+                    id = i?.id,
+                    name = i?.displayName,
+                    box_art_url = i?.boxArtURL,
+                    viewersCount = i?.viewersCount,
+                    broadcastersCount = i?.broadcastersCount,
+                    tags = tags
+                ))
             }
         }
         return list
     }
 
-    private suspend fun gqlInitial(params: LoadInitialParams): List<Game> {
-        api = C.GQL
+    private suspend fun gqlLoad(): List<Game> {
         val get = gqlApi.loadFollowedGames(gqlClientId, gqlToken, 100)
         return get.data
     }
 
     override fun loadRange(params: LoadRangeParams, callback: LoadRangeCallback<Game>) {
         loadRange(params, callback) {
-            mutableListOf()
+            listOf()
         }
     }
 

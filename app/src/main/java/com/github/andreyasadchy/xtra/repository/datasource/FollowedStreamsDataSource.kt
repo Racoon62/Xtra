@@ -4,12 +4,13 @@ import androidx.core.util.Pair
 import androidx.paging.DataSource
 import com.apollographql.apollo3.api.Optional
 import com.github.andreyasadchy.xtra.FollowedStreamsQuery
-import com.github.andreyasadchy.xtra.StreamsQuery
+import com.github.andreyasadchy.xtra.UsersStreamQuery
 import com.github.andreyasadchy.xtra.api.HelixApi
 import com.github.andreyasadchy.xtra.di.XtraModule
 import com.github.andreyasadchy.xtra.di.XtraModule_ApolloClientFactory.apolloClient
 import com.github.andreyasadchy.xtra.di.XtraModule_ApolloClientWithTokenFactory.apolloClientWithToken
 import com.github.andreyasadchy.xtra.model.helix.stream.Stream
+import com.github.andreyasadchy.xtra.model.helix.tag.Tag
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.repository.LocalFollowChannelRepository
 import com.github.andreyasadchy.xtra.util.C
@@ -41,60 +42,46 @@ class FollowedStreamsDataSource(
                     try {
                         if (!helixToken.isNullOrBlank()) helixLocal(localIds) else throw Exception()
                     } catch (e: Exception) {
-                        mutableListOf()
+                        listOf()
                     }
                 }
-            } else mutableListOf()
-            if (!local.isNullOrEmpty()) {
+            } else listOf()
+            if (local.isNotEmpty()) {
                 list.addAll(local)
             }
             val remote = try {
                 when (apiPref.elementAt(0)?.second) {
-                    C.HELIX -> if (!helixToken.isNullOrBlank()) helixInitial(params) else throw Exception()
-                    C.GQL_QUERY -> if (!gqlToken.isNullOrBlank()) gqlQueryInitial(params) else throw Exception()
-                    C.GQL -> if (!gqlToken.isNullOrBlank()) gqlInitial(params) else throw Exception()
+                    C.HELIX -> if (!helixToken.isNullOrBlank()) { api = C.HELIX; helixLoad() } else throw Exception()
+                    C.GQL_QUERY -> if (!gqlToken.isNullOrBlank()) { api = C.GQL_QUERY; gqlQueryLoad() } else throw Exception()
+                    C.GQL -> if (!gqlToken.isNullOrBlank()) { api = C.GQL; gqlLoad() } else throw Exception()
                     else -> throw Exception()
                 }
             } catch (e: Exception) {
                 try {
                     when (apiPref.elementAt(1)?.second) {
-                        C.HELIX -> if (!helixToken.isNullOrBlank()) helixInitial(params) else throw Exception()
-                        C.GQL_QUERY -> if (!gqlToken.isNullOrBlank()) gqlQueryInitial(params) else throw Exception()
-                        C.GQL -> if (!gqlToken.isNullOrBlank()) gqlInitial(params) else throw Exception()
+                        C.HELIX -> if (!helixToken.isNullOrBlank()) { api = C.HELIX; helixLoad() } else throw Exception()
+                        C.GQL_QUERY -> if (!gqlToken.isNullOrBlank()) { api = C.GQL_QUERY; gqlQueryLoad() } else throw Exception()
+                        C.GQL -> if (!gqlToken.isNullOrBlank()) { api = C.GQL; gqlLoad() } else throw Exception()
                         else -> throw Exception()
                     }
                 } catch (e: Exception) {
                     try {
                         when (apiPref.elementAt(2)?.second) {
-                            C.HELIX -> if (!helixToken.isNullOrBlank()) helixInitial(params) else throw Exception()
-                            C.GQL_QUERY -> if (!gqlToken.isNullOrBlank()) gqlQueryInitial(params) else throw Exception()
-                            C.GQL -> if (!gqlToken.isNullOrBlank()) gqlInitial(params) else throw Exception()
+                            C.HELIX -> if (!helixToken.isNullOrBlank()) { api = C.HELIX; helixLoad() } else throw Exception()
+                            C.GQL_QUERY -> if (!gqlToken.isNullOrBlank()) { api = C.GQL_QUERY; gqlQueryLoad() } else throw Exception()
+                            C.GQL -> if (!gqlToken.isNullOrBlank()) { api = C.GQL; gqlLoad() } else throw Exception()
                             else -> throw Exception()
                         }
                     } catch (e: Exception) {
-                        mutableListOf()
+                        listOf()
                     }
                 }
             }
-            if (!remote.isNullOrEmpty()) {
+            if (remote.isNotEmpty()) {
                 for (i in remote) {
                     val item = list.find { it.user_id == i.user_id }
                     if (item == null) {
                         list.add(i)
-                    }
-                }
-                if (api == C.HELIX) {
-                    val userIds = remote.mapNotNull { it.user_id }
-                    for (ids in userIds.chunked(100)) {
-                        val users = helixApi.getUsersById(helixClientId, helixToken, ids).data
-                        if (users != null) {
-                            for (i in users) {
-                                val item = list.find { it.user_id == i.id }
-                                if (item != null) {
-                                    item.profileImageURL = i.profile_image_url
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -103,141 +90,103 @@ class FollowedStreamsDataSource(
         }
     }
 
-    private suspend fun helixInitial(params: LoadInitialParams): List<Stream> {
-        api = C.HELIX
+    private suspend fun helixLoad(): List<Stream> {
         val get = helixApi.getFollowedStreams(helixClientId, helixToken, userId, 100, offset)
-        return if (get.data != null) {
-            offset = get.pagination?.cursor
-            get.data
-        } else mutableListOf()
+        val list = mutableListOf<Stream>()
+        get.data?.let { list.addAll(it) }
+        val ids = list.mapNotNull { it.user_id }
+        if (ids.isNotEmpty()) {
+            val users = helixApi.getUsers(helixClientId, helixToken, ids).data
+            if (users != null) {
+                for (i in users) {
+                    val item = list.find { it.user_id == i.id }
+                    if (item != null) {
+                        item.profileImageURL = i.profile_image_url
+                    }
+                }
+            }
+        }
+        offset = get.pagination?.cursor
+        return list
     }
 
-    private suspend fun gqlQueryInitial(params: LoadInitialParams): List<Stream> {
-        api = C.GQL_QUERY
-        val get1 = apolloClientWithToken(XtraModule(), gqlClientId, gqlToken)
-            .query(FollowedStreamsQuery(id = Optional.Present(userId), first = Optional.Present(100), after = Optional.Present(offset))).execute().data?.user?.followedLiveUsers
+    private suspend fun gqlQueryLoad(): List<Stream> {
+        val get1 = apolloClientWithToken(XtraModule(), gqlClientId, gqlToken).query(FollowedStreamsQuery(
+            id = Optional.Present(userId),
+            first = Optional.Present(100),
+            after = Optional.Present(offset)
+        )).execute().data?.user?.followedLiveUsers
         val get = get1?.edges
         val list = mutableListOf<Stream>()
         if (get != null) {
             for (i in get) {
-                list.add(
-                    Stream(
-                        id = i?.node?.stream?.id,
-                        user_id = i?.node?.id,
-                        user_login = i?.node?.login,
-                        user_name = i?.node?.displayName,
-                        game_id = i?.node?.stream?.game?.id,
-                        game_name = i?.node?.stream?.game?.displayName,
-                        type = i?.node?.stream?.type,
-                        title = i?.node?.stream?.title,
-                        viewer_count = i?.node?.stream?.viewersCount,
-                        started_at = i?.node?.stream?.createdAt,
-                        thumbnail_url = i?.node?.stream?.previewImageURL,
-                        profileImageURL = i?.node?.profileImageURL,
-                    )
-                )
+                val tags = mutableListOf<Tag>()
+                i?.node?.stream?.tags?.forEach { tag ->
+                    tags.add(Tag(
+                        id = tag.id,
+                        name = tag.localizedName
+                    ))
+                }
+                list.add(Stream(
+                    id = i?.node?.stream?.id,
+                    user_id = i?.node?.id,
+                    user_login = i?.node?.login,
+                    user_name = i?.node?.displayName,
+                    game_id = i?.node?.stream?.game?.id,
+                    game_name = i?.node?.stream?.game?.displayName,
+                    type = i?.node?.stream?.type,
+                    title = i?.node?.stream?.broadcaster?.broadcastSettings?.title,
+                    viewer_count = i?.node?.stream?.viewersCount,
+                    started_at = i?.node?.stream?.createdAt?.toString(),
+                    thumbnail_url = i?.node?.stream?.previewImageURL,
+                    profileImageURL = i?.node?.profileImageURL,
+                    tags = tags
+                ))
             }
-            offset = get.lastOrNull()?.cursor.toString()
+            offset = get.lastOrNull()?.cursor?.toString()
             nextPage = get1.pageInfo?.hasNextPage ?: true
         }
         return list
     }
 
-    private suspend fun gqlInitial(params: LoadInitialParams): List<Stream> {
-        api = C.GQL
+    private suspend fun gqlLoad(): List<Stream> {
         val get = gqlApi.loadFollowedStreams(gqlClientId, gqlToken, 100, offset)
-        return if (!get.data.isNullOrEmpty()) {
-            offset = get.cursor
-            get.data
-        } else mutableListOf()
+        offset = get.cursor
+        nextPage = get.hasNextPage ?: true
+        return get.data
     }
 
     override fun loadRange(params: LoadRangeParams, callback: LoadRangeCallback<Stream>) {
         loadRange(params, callback) {
-            val list = if (!offset.isNullOrBlank()) {
+            if (!offset.isNullOrBlank()) {
                 when (api) {
-                    C.HELIX -> helixRange(params)
-                    C.GQL_QUERY -> gqlQueryRange(params)
-                    C.GQL -> gqlRange(params)
-                    else -> mutableListOf()
+                    C.HELIX -> helixLoad()
+                    C.GQL_QUERY -> if (nextPage) gqlQueryLoad() else listOf()
+                    C.GQL -> if (nextPage) gqlLoad() else listOf()
+                    else -> listOf()
                 }
-            } else mutableListOf()
-            if (api == C.HELIX && list.isNotEmpty()) {
-                val userIds = list.mapNotNull { it.user_id }
-                for (ids in userIds.chunked(100)) {
-                    val users = helixApi.getUsersById(helixClientId, helixToken, ids).data
-                    if (users != null) {
-                        for (i in users) {
-                            val item = list.find { it.user_id == i.id }
-                            if (item != null) {
-                                item.profileImageURL = i.profile_image_url
-                            }
-                        }
-                    }
-                }
-            }
-            list
+            } else listOf()
         }
-    }
-
-    private suspend fun helixRange(params: LoadRangeParams): List<Stream> {
-        val get = helixApi.getFollowedStreams(helixClientId, helixToken, userId, 100, offset)
-        return if (get.data != null) {
-            offset = get.pagination?.cursor
-            get.data
-        } else mutableListOf()
-    }
-
-    private suspend fun gqlQueryRange(params: LoadRangeParams): List<Stream> {
-        api = C.GQL_QUERY
-        val get1 = apolloClientWithToken(XtraModule(), gqlClientId, gqlToken)
-            .query(FollowedStreamsQuery(id = Optional.Present(userId), first = Optional.Present(100), after = Optional.Present(offset))).execute().data?.user?.followedLiveUsers
-        val get = get1?.edges
-        val list = mutableListOf<Stream>()
-        if (get != null && nextPage && offset != null && offset != "") {
-            for (i in get) {
-                list.add(
-                    Stream(
-                        id = i?.node?.stream?.id,
-                        user_id = i?.node?.id,
-                        user_login = i?.node?.login,
-                        user_name = i?.node?.displayName,
-                        game_id = i?.node?.stream?.game?.id,
-                        game_name = i?.node?.stream?.game?.displayName,
-                        type = i?.node?.stream?.type,
-                        title = i?.node?.stream?.title,
-                        viewer_count = i?.node?.stream?.viewersCount,
-                        started_at = i?.node?.stream?.createdAt,
-                        thumbnail_url = i?.node?.stream?.previewImageURL,
-                        profileImageURL = i?.node?.profileImageURL,
-                    )
-                )
-            }
-            offset = get.lastOrNull()?.cursor.toString()
-            nextPage = get1.pageInfo?.hasNextPage ?: true
-        }
-        return list
-    }
-
-    private suspend fun gqlRange(params: LoadRangeParams): List<Stream> {
-        val get = gqlApi.loadFollowedStreams(gqlClientId, gqlToken, 100, offset)
-        return if (!get.data.isNullOrEmpty()) {
-            offset = get.cursor
-            get.data
-        } else mutableListOf()
     }
 
     private suspend fun gqlQueryLocal(ids: List<String>): List<Stream> {
         val streams = mutableListOf<Stream>()
         for (localIds in ids.chunked(100)) {
-            val get = apolloClient(XtraModule(), gqlClientId).query(StreamsQuery(Optional.Present(localIds))).execute().data?.users
+            val get = apolloClient(XtraModule(), gqlClientId).query(UsersStreamQuery(Optional.Present(localIds))).execute().data?.users
             if (get != null) {
                 for (i in get) {
                     if (i?.stream?.viewersCount != null) {
-                        streams.add(Stream(id = i.stream.id, user_id = i.id, user_login = i.login, user_name = i.displayName,
-                            game_id = i.stream.game?.id, game_name = i.stream.game?.displayName, type = i.stream.type,
-                            title = i.stream.title, viewer_count = i.stream.viewersCount, started_at = i.stream.createdAt,
-                            thumbnail_url = i.stream.previewImageURL, profileImageURL = i.profileImageURL)
+                        val tags = mutableListOf<Tag>()
+                        i.stream.tags?.forEach { tag ->
+                            tags.add(Tag(
+                                id = tag.id,
+                                name = tag.localizedName
+                            ))
+                        }
+                        streams.add(Stream(id = i.stream.id, user_id = i.id, user_login = i.login, user_name = i.displayName, game_id = i.stream.game?.id,
+                            game_name = i.stream.game?.displayName, type = i.stream.type, title = i.stream.broadcaster?.broadcastSettings?.title,
+                            viewer_count = i.stream.viewersCount, started_at = i.stream.createdAt?.toString(), thumbnail_url = i.stream.previewImageURL,
+                            profileImageURL = i.profileImageURL, tags = tags)
                         )
                     }
                 }
@@ -261,7 +210,7 @@ class FollowedStreamsDataSource(
         if (streams.isNotEmpty()) {
             val userIds = streams.mapNotNull { it.user_id }
             for (streamIds in userIds.chunked(100)) {
-                val users = helixApi.getUsersById(helixClientId, helixToken, streamIds).data
+                val users = helixApi.getUsers(helixClientId, helixToken, streamIds).data
                 if (users != null) {
                     for (i in users) {
                         val item = streams.find { it.user_id == i.id }

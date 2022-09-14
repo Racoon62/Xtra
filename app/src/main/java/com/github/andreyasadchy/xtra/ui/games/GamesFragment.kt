@@ -19,17 +19,14 @@ import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.login.LoginActivity
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
 import com.github.andreyasadchy.xtra.ui.settings.SettingsActivity
-import com.github.andreyasadchy.xtra.util.C
-import com.github.andreyasadchy.xtra.util.TwitchApiHelper
-import com.github.andreyasadchy.xtra.util.gone
-import com.github.andreyasadchy.xtra.util.prefs
+import com.github.andreyasadchy.xtra.util.*
 import kotlinx.android.synthetic.main.common_recycler_view_layout.*
 import kotlinx.android.synthetic.main.fragment_games.*
 
 class GamesFragment : PagedListFragment<Game, GamesViewModel, BasePagedListAdapter<Game>>(), Scrollable {
 
     interface OnGameSelectedListener {
-        fun openGame(id: String?, name: String?, tags: List<String>? = null, updateLocal: Boolean = false)
+        fun openGame(id: String? = null, name: String? = null, tags: List<String>? = null, updateLocal: Boolean = false)
     }
 
     interface OnTagGames {
@@ -72,7 +69,7 @@ class GamesFragment : PagedListFragment<Game, GamesViewModel, BasePagedListAdapt
                             } else {
                                 AlertDialog.Builder(activity).apply {
                                     setTitle(getString(R.string.logout_title))
-                                    user.login?.let { user -> setMessage(getString(R.string.logout_msg, user)) }
+                                    user.login?.nullIfEmpty()?.let { user -> setMessage(getString(R.string.logout_msg, user)) }
                                     setNegativeButton(getString(R.string.no)) { dialog, _ -> dialog.dismiss() }
                                     setPositiveButton(getString(R.string.yes)) { _, _ -> activity.startActivityForResult(Intent(activity, LoginActivity::class.java), 2) }
                                 }.show()
@@ -85,6 +82,7 @@ class GamesFragment : PagedListFragment<Game, GamesViewModel, BasePagedListAdapt
                 show()
             }
         }
+        sortBar.visible()
         sortBar.setOnClickListener { activity.openTagSearch(getGameTags = true) }
     }
 
@@ -93,6 +91,7 @@ class GamesFragment : PagedListFragment<Game, GamesViewModel, BasePagedListAdapt
         recyclerView?.scrollToPosition(0)
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 3 && resultCode == Activity.RESULT_OK) {
@@ -110,7 +109,7 @@ class GamesFragment : PagedListFragment<Game, GamesViewModel, BasePagedListAdapt
         }
         viewModel.loadGames(
             helixClientId = requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""),
-            helixToken = requireContext().prefs().getString(C.TOKEN, ""),
+            helixToken = User.get(requireContext()).helixToken,
             gqlClientId = requireContext().prefs().getString(C.GQL_CLIENT_ID, ""),
             tags = arguments?.getStringArray(C.TAGS)?.toList(),
             apiPref = TwitchApiHelper.listFromPrefs(requireContext().prefs().getString(C.API_PREF_GAMES, ""), TwitchApiHelper.gamesApiDefaults)

@@ -2,8 +2,13 @@ package com.github.andreyasadchy.xtra.repository.datasource
 
 import androidx.core.util.Pair
 import androidx.paging.DataSource
+import com.apollographql.apollo3.api.Optional
+import com.github.andreyasadchy.xtra.SearchGamesQuery
 import com.github.andreyasadchy.xtra.api.HelixApi
+import com.github.andreyasadchy.xtra.di.XtraModule
+import com.github.andreyasadchy.xtra.di.XtraModule_ApolloClientFactory
 import com.github.andreyasadchy.xtra.model.helix.game.Game
+import com.github.andreyasadchy.xtra.model.helix.tag.Tag
 import com.github.andreyasadchy.xtra.repository.GraphQLRepository
 import com.github.andreyasadchy.xtra.util.C
 import kotlinx.coroutines.CoroutineScope
@@ -19,75 +24,100 @@ class SearchGamesDataSource private constructor(
     coroutineScope: CoroutineScope) : BasePositionalDataSource<Game>(coroutineScope) {
     private var api: String? = null
     private var offset: String? = null
+    private var nextPage: Boolean = true
 
     override fun loadInitial(params: LoadInitialParams, callback: LoadInitialCallback<Game>) {
         loadInitial(params, callback) {
             try {
                 when (apiPref?.elementAt(0)?.second) {
-                    C.HELIX -> if (!helixToken.isNullOrBlank()) helixInitial(params) else throw Exception()
-                    C.GQL -> gqlInitial(params)
+                    C.HELIX -> if (!helixToken.isNullOrBlank()) { api = C.HELIX; helixLoad(params) } else throw Exception()
+                    C.GQL_QUERY -> { api = C.GQL_QUERY; gqlQueryLoad(params) }
+                    C.GQL -> { api = C.GQL; gqlLoad() }
                     else -> throw Exception()
                 }
             } catch (e: Exception) {
                 try {
                     when (apiPref?.elementAt(1)?.second) {
-                        C.HELIX -> if (!helixToken.isNullOrBlank()) helixInitial(params) else throw Exception()
-                        C.GQL -> gqlInitial(params)
+                        C.HELIX -> if (!helixToken.isNullOrBlank()) { api = C.HELIX; helixLoad(params) } else throw Exception()
+                        C.GQL_QUERY -> { api = C.GQL_QUERY; gqlQueryLoad(params) }
+                        C.GQL -> { api = C.GQL; gqlLoad() }
                         else -> throw Exception()
                     }
                 } catch (e: Exception) {
-                    mutableListOf()
+                    try {
+                        when (apiPref?.elementAt(2)?.second) {
+                            C.HELIX -> if (!helixToken.isNullOrBlank()) { api = C.HELIX; helixLoad(params) } else throw Exception()
+                            C.GQL_QUERY -> { api = C.GQL_QUERY; gqlQueryLoad(params) }
+                            C.GQL -> { api = C.GQL; gqlLoad() }
+                            else -> throw Exception()
+                        }
+                    } catch (e: Exception) {
+                        listOf()
+                    }
                 }
             }
         }
     }
 
-    private suspend fun helixInitial(params: LoadInitialParams): List<Game> {
-        api = C.HELIX
-        val get = helixApi.getGames(helixClientId, helixToken, query, params.requestedLoadSize, offset)
+    private suspend fun helixLoad(initialParams: LoadInitialParams? = null, rangeParams: LoadRangeParams? = null): List<Game> {
+        val get = helixApi.getGames(helixClientId, helixToken, query, initialParams?.requestedLoadSize ?: rangeParams?.loadSize, offset)
         return if (get.data != null) {
             offset = get.pagination?.cursor
             get.data
-        } else mutableListOf()
+        } else listOf()
     }
 
-    private suspend fun gqlInitial(params: LoadInitialParams): List<Game> {
-        api = C.GQL
+    private suspend fun gqlQueryLoad(initialParams: LoadInitialParams? = null, rangeParams: LoadRangeParams? = null): List<Game> {
+        val get1 = XtraModule_ApolloClientFactory.apolloClient(XtraModule(), gqlClientId).query(SearchGamesQuery(
+            query = query,
+            first = Optional.Present(initialParams?.requestedLoadSize ?: rangeParams?.loadSize),
+            after = Optional.Present(offset)
+        )).execute().data?.searchCategories
+        val get = get1?.edges
+        val list = mutableListOf<Game>()
+        if (get != null) {
+            for (edge in get) {
+                edge.node?.let { i ->
+                    val tags = mutableListOf<Tag>()
+                    i.tags?.forEach { tag ->
+                        tags.add(Tag(
+                            id = tag.id,
+                            name = tag.localizedName
+                        ))
+                    }
+                    list.add(Game(
+                        id = i.id,
+                        name = i.displayName,
+                        box_art_url = i.boxArtURL,
+                        viewersCount = i.viewersCount ?: 0, // returns null if 0
+                        broadcastersCount = i.broadcastersCount ?: 0, // returns null if 0
+                        tags = tags
+                    ))
+                }
+            }
+            offset = get1.edges.lastOrNull()?.cursor?.toString()
+            nextPage = get1.pageInfo?.hasNextPage ?: true
+        }
+        return list
+    }
+
+    private suspend fun gqlLoad(): List<Game> {
         val get = gqlApi.loadSearchGames(gqlClientId, query, offset)
-        return if (get.data != null) {
-            offset = get.cursor
-            get.data
-        } else mutableListOf()
+        offset = get.cursor
+        return get.data
     }
 
     override fun loadRange(params: LoadRangeParams, callback: LoadRangeCallback<Game>) {
         loadRange(params, callback) {
-            when (api) {
-                C.HELIX -> helixRange(params)
-                C.GQL -> gqlRange(params)
-                else -> mutableListOf()
-            }
+            if (!offset.isNullOrBlank()) {
+                when (api) {
+                    C.HELIX -> helixLoad(rangeParams = params)
+                    C.GQL_QUERY -> if (nextPage) gqlQueryLoad(rangeParams = params) else listOf()
+                    C.GQL -> gqlLoad()
+                    else -> listOf()
+                }
+            } else listOf()
         }
-    }
-
-    private suspend fun helixRange(params: LoadRangeParams): List<Game> {
-        val get = helixApi.getGames(helixClientId, helixToken, query, params.loadSize, offset)
-        return if (offset != null && offset != "") {
-            if (get.data != null) {
-                offset = get.pagination?.cursor
-                get.data
-            } else mutableListOf()
-        } else mutableListOf()
-    }
-
-    private suspend fun gqlRange(params: LoadRangeParams): List<Game> {
-        val get = gqlApi.loadSearchGames(gqlClientId, query, offset)
-        return if (offset != null && offset != "") {
-            if (get.data != null) {
-                offset = get.cursor
-                get.data
-            } else mutableListOf()
-        } else mutableListOf()
     }
 
     class Factory(

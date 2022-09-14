@@ -3,7 +3,6 @@ package com.github.andreyasadchy.xtra.ui.player.stream
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageButton
-import android.widget.ImageView
 import android.widget.LinearLayout
 import androidx.core.os.bundleOf
 import androidx.fragment.app.viewModels
@@ -54,7 +53,7 @@ class StreamPlayerFragment : BasePlayerFragment(), RadioButtonDialogFragment.OnS
             if (it != null) {
                 it as ChatFragment
             } else {
-                val fragment = ChatFragment.newInstance(channelId, channelLogin, channelName)
+                val fragment = ChatFragment.newInstance(channelId, channelLogin, channelName, stream.id)
                 childFragmentManager.beginTransaction().replace(R.id.chatFragmentContainer, fragment).commit()
                 fragment
             }
@@ -62,8 +61,13 @@ class StreamPlayerFragment : BasePlayerFragment(), RadioButtonDialogFragment.OnS
     }
 
     override fun initialize() {
+        val user = User.get(requireContext())
+        val disableChat = prefs.getBoolean(C.CHAT_DISABLE, false)
+        val usePubSub = prefs.getBoolean(C.CHAT_PUBSUB_ENABLED, true)
+        val collectPoints = prefs.getBoolean(C.CHAT_POINTS_COLLECT, true)
+        val updateStream = disableChat || !usePubSub || (!disableChat && usePubSub && collectPoints && !user.id.isNullOrBlank() && !user.gqlToken.isNullOrBlank())
         viewModel.startStream(
-            user = User.get(requireContext()),
+            user = user,
             includeToken = prefs.getBoolean(C.TOKEN_INCLUDE_TOKEN_STREAM, false),
             helixClientId = prefs.getString(C.HELIX_CLIENT_ID, ""),
             gqlClientId = prefs.getString(C.GQL_CLIENT_ID, ""),
@@ -75,14 +79,15 @@ class StreamPlayerFragment : BasePlayerFragment(), RadioButtonDialogFragment.OnS
             playerType = prefs.getString(C.TOKEN_PLAYERTYPE, ""),
             minSpeed = prefs.getString(C.PLAYER_LIVE_MIN_SPEED, ""),
             maxSpeed = prefs.getString(C.PLAYER_LIVE_MAX_SPEED, ""),
-            targetOffset = prefs.getString(C.PLAYER_LIVE_TARGET_OFFSET, "5000")
+            targetOffset = prefs.getString(C.PLAYER_LIVE_TARGET_OFFSET, "5000"),
+            updateStream = updateStream
         )
         super.initialize()
         val settings = requireView().findViewById<ImageButton>(R.id.playerSettings)
         val playerMenu = requireView().findViewById<ImageButton>(R.id.playerMenu)
         val restart = requireView().findViewById<ImageButton>(R.id.playerRestart)
+        val mode = requireView().findViewById<ImageButton>(R.id.playerMode)
         val viewersLayout = requireView().findViewById<LinearLayout>(R.id.viewersLayout)
-        val viewerIcon = requireView().findViewById<ImageView>(R.id.viewerIcon)
         viewModel.loaded.observe(viewLifecycleOwner) {
             if (it) {
                 settings.enable()
@@ -92,14 +97,8 @@ class StreamPlayerFragment : BasePlayerFragment(), RadioButtonDialogFragment.OnS
             }
         }
         viewModel.stream.observe(viewLifecycleOwner) {
-            if (it?.viewer_count != null) {
-                viewers.text = TwitchApiHelper.formatCount(requireContext(), it.viewer_count)
-                if (prefs.getBoolean(C.PLAYER_VIEWERICON, true)) {
-                    viewerIcon.visible()
-                }
-            } else {
-                viewers.text = null
-                viewerIcon.gone()
+            if (disableChat || !usePubSub || viewers.text.isNullOrBlank()) {
+                updateViewerCount(it?.viewer_count)
             }
         }
         if (prefs.getBoolean(C.PLAYER_SETTINGS, true)) {
@@ -120,10 +119,32 @@ class StreamPlayerFragment : BasePlayerFragment(), RadioButtonDialogFragment.OnS
                 restartPlayer()
             }
         }
+        if (prefs.getBoolean(C.PLAYER_MODE, false)) {
+            mode.visible()
+            mode.setOnClickListener {
+                if (viewModel.playerMode.value != PlayerMode.AUDIO_ONLY) {
+                    startAudioOnly()
+                } else {
+                    viewModel.onResume()
+                }
+            }
+        }
         if (prefs.getBoolean(C.PLAYER_VIEWERLIST, false)) {
             viewersLayout.setOnClickListener {
                 openViewerList()
             }
+        }
+    }
+
+    fun updateViewerCount(viewerCount: Int?) {
+        if (viewerCount != null) {
+            viewers.text = TwitchApiHelper.formatCount(requireContext(), viewerCount)
+            if (prefs.getBoolean(C.PLAYER_VIEWERICON, true)) {
+                viewerIcon.visible()
+            }
+        } else {
+            viewers.text = null
+            viewerIcon.gone()
         }
     }
 

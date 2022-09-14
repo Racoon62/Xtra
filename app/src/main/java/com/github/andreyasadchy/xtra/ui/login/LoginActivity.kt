@@ -2,6 +2,7 @@ package com.github.andreyasadchy.xtra.ui.login
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.webkit.CookieManager
 import android.webkit.WebView
@@ -34,27 +35,27 @@ class LoginActivity : AppCompatActivity(), Injectable {
     lateinit var repository: AuthRepository
     private val tokenPattern = Pattern.compile("token=(.+?)(?=&)")
     private var tokens = 0
-    private var userId = ""
-    private var userLogin = ""
-    private var helixToken = ""
-    private var gqlToken = ""
+    private var userId: String? = null
+    private var userLogin: String? = null
+    private var helixToken: String? = null
+    private var gqlToken: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyTheme()
         setContentView(R.layout.activity_login)
-        val helixClientId = prefs().getString(C.HELIX_CLIENT_ID, "") ?: ""
-        val gqlClientId = prefs().getString(C.GQL_CLIENT_ID, "") ?: ""
+        val helixClientId = prefs().getString(C.HELIX_CLIENT_ID, "")
+        val gqlClientId = prefs().getString(C.GQL_CLIENT_ID, "")
         val user = User.get(this)
         if (user !is NotLoggedIn) {
             TwitchApiHelper.checkedValidation = false
             User.set(this, null)
             GlobalScope.launch {
                 try {
-                    if (!user.helixToken.isNullOrBlank()) {
+                    if (!helixClientId.isNullOrBlank() && !user.helixToken.isNullOrBlank()) {
                         repository.revoke(helixClientId, user.helixToken)
                     }
-                    if (!user.gqlToken.isNullOrBlank()) {
+                    if (!gqlClientId.isNullOrBlank() && !user.gqlToken.isNullOrBlank()) {
                         repository.revoke(gqlClientId, user.gqlToken)
                     }
                 } catch (e: Exception) {
@@ -66,7 +67,7 @@ class LoginActivity : AppCompatActivity(), Injectable {
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun initWebView(helixClientId: String, gqlClientId: String) {
+    private fun initWebView(helixClientId: String?, gqlClientId: String?) {
         webViewContainer.visible()
         val apiSetting = prefs().getString(C.API_LOGIN, "0")?.toInt() ?: 0
         val helixRedirect = prefs().getString(C.HELIX_REDIRECT, "https://localhost")
@@ -99,7 +100,7 @@ class LoginActivity : AppCompatActivity(), Injectable {
                                 .setPositiveButton(R.string.log_in) { _, _ ->
                                     val text = editText.text
                                     if (text.isNotEmpty()) {
-                                        if (!loginIfValidUrl(text.toString(), gqlAuthUrl, 2)) {
+                                        if (!loginIfValidUrl(text.toString(), gqlAuthUrl, helixClientId, gqlClientId, 2)) {
                                             shortToast(R.string.invalid_url)
                                         }
                                     }
@@ -112,8 +113,16 @@ class LoginActivity : AppCompatActivity(), Injectable {
                     .show()
         }
         clearCookies()
+        val theme = if (prefs().getBoolean(C.UI_THEME_FOLLOW_SYSTEM, false)) {
+            when (resources.configuration.uiMode.and(Configuration.UI_MODE_NIGHT_MASK)) {
+                Configuration.UI_MODE_NIGHT_YES -> prefs().getString(C.UI_THEME_DARK_ON, "0")!!
+                else -> prefs().getString(C.UI_THEME_DARK_OFF, "2")!!
+            }
+        } else {
+            prefs().getString(C.THEME, "0")!!
+        }
         with(webView) {
-            if (prefs().getString(C.THEME, "0") != "2") {
+            if (theme != "2") {
                 if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
                     WebSettingsCompat.setForceDark(this.settings, WebSettingsCompat.FORCE_DARK_ON)
                 }
@@ -124,11 +133,13 @@ class LoginActivity : AppCompatActivity(), Injectable {
             settings.javaScriptEnabled = true
             webViewClient = object : WebViewClient() {
 
+                @Deprecated("Deprecated in Java")
                 override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                    loginIfValidUrl(url, gqlAuthUrl, apiSetting)
+                    loginIfValidUrl(url, gqlAuthUrl, helixClientId, gqlClientId, apiSetting)
                     return false
                 }
 
+                @Deprecated("Deprecated in Java")
                 override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
                     val errorMessage = if (errorCode == -11) {
                         getString(R.string.browser_workaround)
@@ -140,7 +151,7 @@ class LoginActivity : AppCompatActivity(), Injectable {
                     loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
                 }
             }
-            loadUrl(helixAuthUrl)
+            loadUrl(if (apiSetting == 1) gqlAuthUrl else helixAuthUrl)
         }
     }
 
@@ -154,7 +165,7 @@ class LoginActivity : AppCompatActivity(), Injectable {
         return super.onKeyDown(keyCode, event)
     }*/
 
-    private fun loginIfValidUrl(url: String, gqlAuthUrl: String, apiSetting: Int): Boolean {
+    private fun loginIfValidUrl(url: String, gqlAuthUrl: String, helixClientId: String?, gqlClientId: String?, apiSetting: Int): Boolean {
         val matcher = tokenPattern.matcher(url)
         return if (matcher.find() && tokens < 2) {
             webViewContainer.gone()
@@ -164,11 +175,11 @@ class LoginActivity : AppCompatActivity(), Injectable {
                 lifecycleScope.launch {
                     try {
                         val response = repository.validate(TwitchApiHelper.addTokenPrefixHelix(token))
-                        if (response != null) {
-                            userId = response.userId
-                            userLogin = response.login
+                        if (!response?.clientId.isNullOrBlank() && response?.clientId == helixClientId) {
+                            userId = response?.userId
+                            userLogin = response?.login
                             helixToken = token
-                            if (apiSetting == 0 && gqlToken.isNotBlank() || apiSetting > 0) {
+                            if (apiSetting == 0 && !gqlToken.isNullOrBlank() || apiSetting > 0) {
                                 TwitchApiHelper.checkedValidation = true
                                 User.set(this@LoginActivity, LoggedIn(userId, userLogin, helixToken, gqlToken))
                                 setResult(RESULT_OK)
@@ -185,11 +196,11 @@ class LoginActivity : AppCompatActivity(), Injectable {
                 lifecycleScope.launch {
                     try {
                         val response = repository.validate(TwitchApiHelper.addTokenPrefixGQL(token))
-                        if (response != null) {
-                            userId = response.userId
-                            userLogin = response.login
+                        if (!response?.clientId.isNullOrBlank() && response?.clientId == gqlClientId) {
+                            userId = response?.userId
+                            userLogin = response?.login
                             gqlToken = token
-                            if (apiSetting == 0 && helixToken.isNotBlank() || apiSetting > 0) {
+                            if (apiSetting == 0 && !helixToken.isNullOrBlank() || apiSetting > 0) {
                                 TwitchApiHelper.checkedValidation = true
                                 User.set(this@LoginActivity, LoggedIn(userId, userLogin, helixToken, gqlToken))
                                 setResult(RESULT_OK)

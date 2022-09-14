@@ -10,18 +10,16 @@ class EmoteCardDeserializer : JsonDeserializer<EmoteCardResponse> {
 
     @Throws(JsonParseException::class)
     override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): EmoteCardResponse {
-        var data: EmoteCard? = null
-        val obj = json.asJsonObject.getAsJsonObject("data").getAsJsonObject("emote")
-        if (!obj.isJsonNull) {
-            data = EmoteCard(
-                id = if (!(obj.get("id").isJsonNull)) { obj.getAsJsonPrimitive("id").asString } else null,
-                name = if (!(obj.get("token").isJsonNull)) { obj.getAsJsonPrimitive("token").asString } else null,
-                type = if (!(obj.get("type").isJsonNull)) { obj.getAsJsonPrimitive("type").asString } else null,
-                subTier = if (!(obj.get("subscriptionTier").isJsonNull)) { obj.getAsJsonPrimitive("subscriptionTier").asString } else null,
-                bitThreshold = if (!(obj.get("bitsBadgeTierSummary").isJsonNull)) { obj.getAsJsonObject("bitsBadgeTierSummary").getAsJsonPrimitive("threshold").asInt } else null,
-                channelId = if (!(obj.get("owner").isJsonNull)) { obj.getAsJsonObject("owner").getAsJsonPrimitive("id").asString } else null,
-                channelLogin = if (!(obj.get("owner").isJsonNull)) { obj.getAsJsonObject("owner").getAsJsonPrimitive("login").asString } else null,
-                channelName = if (!(obj.get("owner").isJsonNull)) { obj.getAsJsonObject("owner").getAsJsonPrimitive("displayName").asString } else null
+        val data = json.takeIf { it.isJsonObject }?.asJsonObject?.get("data")?.takeIf { it.isJsonObject }?.asJsonObject?.get("emote")?.takeIf { it.isJsonObject }?.asJsonObject?.let { obj ->
+            EmoteCard(
+                id = obj.get("id")?.takeIf { !it.isJsonNull }?.asString,
+                name = obj.get("token")?.takeIf { !it.isJsonNull }?.asString,
+                type = obj.get("type")?.takeIf { !it.isJsonNull }?.asString,
+                subTier = obj.get("subscriptionTier")?.takeIf { !it.isJsonNull }?.asString,
+                bitThreshold = obj.get("bitsBadgeTierSummary")?.takeIf { it.isJsonObject }?.asJsonObject?.get("threshold")?.takeIf { !it.isJsonNull }?.asInt,
+                channelId = obj.get("owner")?.takeIf { it.isJsonObject }?.asJsonObject?.get("id")?.takeIf { !it.isJsonNull }?.asString,
+                channelLogin = obj.get("owner")?.takeIf { it.isJsonObject }?.asJsonObject?.get("login")?.takeIf { !it.isJsonNull }?.asString,
+                channelName = obj.get("owner")?.takeIf { it.isJsonObject }?.asJsonObject?.get("displayName")?.takeIf { !it.isJsonNull }?.asString
             )
         }
         return EmoteCardResponse(data)

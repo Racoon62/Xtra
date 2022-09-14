@@ -33,13 +33,14 @@ import kotlinx.android.synthetic.main.fragment_media_pager.*
 class ChannelPagerFragment : MediaPagerFragment(), FollowFragment, Scrollable {
 
     companion object {
-        fun newInstance(id: String?, login: String?, name: String?, channelLogo: String?, updateLocal: Boolean = false) = ChannelPagerFragment().apply {
+        fun newInstance(id: String?, login: String?, name: String?, channelLogo: String?, updateLocal: Boolean = false, streamId: String? = null) = ChannelPagerFragment().apply {
             arguments = Bundle().apply {
                 putString(C.CHANNEL_ID, id)
                 putString(C.CHANNEL_LOGIN, login)
                 putString(C.CHANNEL_DISPLAYNAME, name)
                 putString(C.CHANNEL_PROFILEIMAGE, channelLogo)
                 putBoolean(C.CHANNEL_UPDATELOCAL, updateLocal)
+                putString(C.STREAM_ID, streamId)
             }
         }
     }
@@ -94,7 +95,7 @@ class ChannelPagerFragment : MediaPagerFragment(), FollowFragment, Scrollable {
                             } else {
                                 AlertDialog.Builder(activity).apply {
                                     setTitle(getString(R.string.logout_title))
-                                    user.login?.let { user -> setMessage(getString(R.string.logout_msg, user)) }
+                                    user.login?.nullIfEmpty()?.let { user -> setMessage(getString(R.string.logout_msg, user)) }
                                     setNegativeButton(getString(R.string.no)) { dialog, _ -> dialog.dismiss() }
                                     setPositiveButton(getString(R.string.yes)) { _, _ -> activity.startActivityForResult(Intent(activity, LoginActivity::class.java), 2) }
                                 }.show()
@@ -128,18 +129,26 @@ class ChannelPagerFragment : MediaPagerFragment(), FollowFragment, Scrollable {
 
     override fun initialize() {
         val activity = requireActivity() as MainActivity
-        viewModel.loadStream(channelId = requireArguments().getString(C.CHANNEL_ID), channelLogin = requireArguments().getString(C.CHANNEL_LOGIN), channelName = requireArguments().getString(C.CHANNEL_DISPLAYNAME), profileImageURL = requireArguments().getString(C.CHANNEL_PROFILEIMAGE), helixClientId = requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""), helixToken = requireContext().prefs().getString(C.TOKEN, ""), gqlClientId = requireContext().prefs().getString(C.GQL_CLIENT_ID, ""))
+        watchLive.setOnClickListener { activity.startStream(Stream(
+            id = requireArguments().getString(C.STREAM_ID),
+            user_id = requireArguments().getString(C.CHANNEL_ID),
+            user_login = requireArguments().getString(C.CHANNEL_LOGIN),
+            user_name = requireArguments().getString(C.CHANNEL_DISPLAYNAME),
+            profileImageURL = requireArguments().getString(C.CHANNEL_PROFILEIMAGE)))
+        }
+        viewModel.init(requireArguments().getString(C.CHANNEL_ID), requireArguments().getString(C.CHANNEL_LOGIN), requireArguments().getString(C.CHANNEL_DISPLAYNAME), requireArguments().getString(C.CHANNEL_PROFILEIMAGE))
+        viewModel.loadStream(requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""), User.get(requireContext()).helixToken, requireContext().prefs().getString(C.GQL_CLIENT_ID, ""))
         viewModel.stream.observe(viewLifecycleOwner) { stream ->
             updateStreamLayout(stream)
             if (stream?.channelUser != null) {
                 updateUserLayout(stream.channelUser)
             } else {
-                viewModel.loadUser(channelId = requireArguments().getString(C.CHANNEL_ID), helixClientId = requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""), helixToken = requireContext().prefs().getString(C.TOKEN, ""), gqlClientId = requireContext().prefs().getString(C.GQL_CLIENT_ID, ""))
-                viewModel.user.observe(viewLifecycleOwner) { user ->
-                    if (user != null) {
-                        updateUserLayout(user)
-                    }
-                }
+                viewModel.loadUser(requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""), User.get(requireContext()).helixToken)
+            }
+        }
+        viewModel.user.observe(viewLifecycleOwner) { user ->
+            if (user != null) {
+                updateUserLayout(user)
             }
         }
         if ((requireContext().prefs().getString(C.UI_FOLLOW_BUTTON, "0")?.toInt() ?: 0) < 2) {
@@ -165,7 +174,6 @@ class ChannelPagerFragment : MediaPagerFragment(), FollowFragment, Scrollable {
                 watchLive.text = getString(R.string.watch_live)
                 watchLive.setOnClickListener { activity.startStream(stream) }
             } else {
-                watchLive.setOnClickListener { activity.startStream(Stream(user_id = requireArguments().getString(C.CHANNEL_ID), user_login = requireArguments().getString(C.CHANNEL_LOGIN), user_name = requireArguments().getString(C.CHANNEL_DISPLAYNAME), profileImageURL = requireArguments().getString(C.CHANNEL_PROFILEIMAGE))) }
                 if (stream?.lastBroadcast != null) {
                     TwitchApiHelper.formatTimeString(requireContext(), stream.lastBroadcast).let {
                         if (it != null)  {
@@ -201,6 +209,11 @@ class ChannelPagerFragment : MediaPagerFragment(), FollowFragment, Scrollable {
                 requireArguments().putString(C.CHANNEL_LOGIN, it)
             }
         }
+        stream?.id.let {
+            if (it != null && it != requireArguments().getString(C.STREAM_ID)) {
+                requireArguments().putString(C.STREAM_ID, it)
+            }
+        }
         if (stream?.title != null) {
             streamLayout.visible()
             title.visible()
@@ -221,7 +234,7 @@ class ChannelPagerFragment : MediaPagerFragment(), FollowFragment, Scrollable {
         if (stream?.viewer_count != null) {
             streamLayout.visible()
             viewers.visible()
-            viewers.text = TwitchApiHelper.formatViewersCount(requireContext(), stream.viewer_count)
+            viewers.text = TwitchApiHelper.formatViewersCount(requireContext(), stream.viewer_count ?: 0)
         } else {
             viewers.gone()
         }
@@ -305,7 +318,7 @@ class ChannelPagerFragment : MediaPagerFragment(), FollowFragment, Scrollable {
     }
 
     override fun onNetworkRestored() {
-        viewModel.retry(helixClientId = requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""), helixToken = requireContext().prefs().getString(C.TOKEN, ""), gqlClientId = requireContext().prefs().getString(C.GQL_CLIENT_ID, ""))
+        viewModel.retry(requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""), User.get(requireContext()).helixToken, requireContext().prefs().getString(C.GQL_CLIENT_ID, ""))
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -315,6 +328,7 @@ class ChannelPagerFragment : MediaPagerFragment(), FollowFragment, Scrollable {
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 3 && resultCode == Activity.RESULT_OK) {

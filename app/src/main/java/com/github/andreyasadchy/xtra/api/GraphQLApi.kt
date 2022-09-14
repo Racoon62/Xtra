@@ -2,11 +2,13 @@ package com.github.andreyasadchy.xtra.api
 
 import com.github.andreyasadchy.xtra.model.chat.EmoteCardResponse
 import com.github.andreyasadchy.xtra.model.gql.channel.ChannelClipsDataResponse
+import com.github.andreyasadchy.xtra.model.gql.channel.ChannelHostingDataResponse
 import com.github.andreyasadchy.xtra.model.gql.channel.ChannelVideosDataResponse
 import com.github.andreyasadchy.xtra.model.gql.channel.ChannelViewerListDataResponse
 import com.github.andreyasadchy.xtra.model.gql.clip.ClipDataResponse
 import com.github.andreyasadchy.xtra.model.gql.clip.ClipUrlsResponse
 import com.github.andreyasadchy.xtra.model.gql.clip.ClipVideoResponse
+import com.github.andreyasadchy.xtra.model.gql.emote.UserEmotesDataResponse
 import com.github.andreyasadchy.xtra.model.gql.followed.*
 import com.github.andreyasadchy.xtra.model.gql.game.GameClipsDataResponse
 import com.github.andreyasadchy.xtra.model.gql.game.GameDataResponse
@@ -14,8 +16,10 @@ import com.github.andreyasadchy.xtra.model.gql.game.GameStreamsDataResponse
 import com.github.andreyasadchy.xtra.model.gql.game.GameVideosDataResponse
 import com.github.andreyasadchy.xtra.model.gql.playlist.StreamPlaylistTokenResponse
 import com.github.andreyasadchy.xtra.model.gql.playlist.VideoPlaylistTokenResponse
+import com.github.andreyasadchy.xtra.model.gql.points.ChannelPointsContextDataResponse
 import com.github.andreyasadchy.xtra.model.gql.search.SearchChannelDataResponse
 import com.github.andreyasadchy.xtra.model.gql.search.SearchGameDataResponse
+import com.github.andreyasadchy.xtra.model.gql.search.SearchVideosDataResponse
 import com.github.andreyasadchy.xtra.model.gql.stream.StreamDataResponse
 import com.github.andreyasadchy.xtra.model.gql.stream.ViewersDataResponse
 import com.github.andreyasadchy.xtra.model.gql.tag.*
@@ -79,6 +83,9 @@ interface GraphQLApi {
     suspend fun getSearchGames(@Header("Client-ID") clientId: String?, @Body json: JsonObject): SearchGameDataResponse
 
     @POST(".")
+    suspend fun getSearchVideos(@Header("Client-ID") clientId: String?, @Body json: JsonObject): SearchVideosDataResponse
+
+    @POST(".")
     suspend fun getGameTags(@Header("Client-ID") clientId: String?, @Body json: JsonObject): TagGameDataResponse
 
     @POST(".")
@@ -98,6 +105,9 @@ interface GraphQLApi {
 
     @POST(".")
     suspend fun getViewerCount(@Header("Client-ID") clientId: String?, @Body json: JsonObject): ViewersDataResponse
+
+    @POST(".")
+    suspend fun getChannelHosting(@Header("Client-ID") clientId: String?, @Body json: JsonObject): ChannelHostingDataResponse
 
     @POST(".")
     suspend fun getEmoteCard(@Header("Client-ID") clientId: String?, @Body json: JsonObject): EmoteCardResponse
@@ -131,6 +141,18 @@ interface GraphQLApi {
 
     @POST(".")
     suspend fun getFollowingGame(@Header("Client-ID") clientId: String?, @Header("Authorization") token: String?, @Body json: JsonObject): FollowingGameDataResponse
+
+    @POST(".")
+    suspend fun getChannelPointsContext(@Header("Client-ID") clientId: String?, @Header("Authorization") token: String?, @Body json: JsonObject): ChannelPointsContextDataResponse
+
+    @POST(".")
+    suspend fun getClaimPoints(@Header("Client-ID") clientId: String?, @Header("Authorization") token: String?, @Body json: JsonObject)
+
+    @POST(".")
+    suspend fun getJoinRaid(@Header("Client-ID") clientId: String?, @Header("Authorization") token: String?, @Body json: JsonObject)
+
+    @POST(".")
+    suspend fun getUserEmotes(@Header("Client-ID") clientId: String?, @Header("Authorization") token: String?, @Body json: JsonObject): UserEmotesDataResponse
 
     @POST(".")
     suspend fun getChannelPanel(@Body json: JsonArray): Response<ResponseBody>

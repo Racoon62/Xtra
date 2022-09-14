@@ -27,6 +27,7 @@ class MessageClickedDialog : ExpandingBottomSheetDialogFragment(), Injectable {
         fun onReplyClicked(userName: String)
         fun onCopyMessageClicked(message: String)
         fun onViewProfileClicked(id: String?, login: String?, name: String?, channelLogo: String?)
+        fun onHostClicked()
     }
 
     companion object {
@@ -34,14 +35,15 @@ class MessageClickedDialog : ExpandingBottomSheetDialogFragment(), Injectable {
         private const val KEY_ORIGINAL = "original"
         private const val KEY_FORMATTED = "formatted"
         private const val KEY_USERID = "userid"
-        private val savedUsers = mutableListOf<User>()
+        private const val KEY_CHANNEL_ID = "channelId"
+        private const val KEY_HOST = "host"
+        private const val KEY_FULL_MSG = "full"
+        private val savedUsers = mutableListOf<Pair<User, String?>>()
 
-        fun newInstance(messagingEnabled: Boolean, originalMessage: CharSequence, formattedMessage: CharSequence, userId: String?, fullMsg: String?) = MessageClickedDialog().apply {
-            arguments = bundleOf(KEY_MESSAGING to messagingEnabled, KEY_ORIGINAL to originalMessage, KEY_FORMATTED to formattedMessage, KEY_USERID to userId); this.fullMsg = fullMsg
+        fun newInstance(messagingEnabled: Boolean, originalMessage: CharSequence, formattedMessage: CharSequence, userId: String?, channelId: String?, host: Boolean?, fullMsg: String?) = MessageClickedDialog().apply {
+            arguments = bundleOf(KEY_MESSAGING to messagingEnabled, KEY_ORIGINAL to originalMessage, KEY_FORMATTED to formattedMessage, KEY_USERID to userId, KEY_CHANNEL_ID to channelId, KEY_HOST to host, KEY_FULL_MSG to fullMsg)
         }
     }
-
-    var fullMsg: String? = null
 
     @Inject lateinit var viewModelFactory: ViewModelProvider.Factory
     private val viewModel by viewModels<MessageClickedViewModel> { viewModelFactory }
@@ -63,16 +65,23 @@ class MessageClickedDialog : ExpandingBottomSheetDialogFragment(), Injectable {
         message.text = args.getCharSequence(KEY_FORMATTED)!!
         val msg = args.getCharSequence(KEY_ORIGINAL)!!
         val userId = args.getString(KEY_USERID)
+        val targetId = args.getString(KEY_CHANNEL_ID)
+        val fullMsg = args.getString(KEY_FULL_MSG)
         val clipboard = getSystemService(requireContext(), ClipboardManager::class.java)
         if (userId != null) {
-            val item = savedUsers.find { it.id == userId }
+            val item = savedUsers.find { it.first.id == userId && it.second == targetId }
             if (item != null) {
-                updateUserLayout(item)
+                updateUserLayout(item.first)
             } else {
-                viewModel.loadUser(channelId = userId, helixClientId = requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""), helixToken = requireContext().prefs().getString(C.TOKEN, ""),
-                    gqlClientId = requireContext().prefs().getString(C.GQL_CLIENT_ID, "")).observe(viewLifecycleOwner) { user ->
+                viewModel.loadUser(
+                    channelId = userId,
+                    targetId = if (userId != targetId) targetId else null,
+                    helixClientId = requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""),
+                    helixToken = com.github.andreyasadchy.xtra.model.User.get(requireContext()).helixToken,
+                    gqlClientId = requireContext().prefs().getString(C.GQL_CLIENT_ID, "")
+                ).observe(viewLifecycleOwner) { user ->
                     if (user != null) {
-                        savedUsers.add(user)
+                        savedUsers.add(Pair(user, targetId))
                         updateUserLayout(user)
                     } else {
                         viewProfile.visible()
@@ -103,6 +112,13 @@ class MessageClickedDialog : ExpandingBottomSheetDialogFragment(), Injectable {
             copyFullMsg.visible()
             copyFullMsg.setOnClickListener {
                 clipboard?.setPrimaryClip(ClipData.newPlainText("label", fullMsg))
+                dismiss()
+            }
+        }
+        if (args.getBoolean(KEY_HOST)) {
+            watchHost.visible()
+            watchHost.setOnClickListener {
+                listener.onHostClicked()
                 dismiss()
             }
         }
@@ -141,17 +157,6 @@ class MessageClickedDialog : ExpandingBottomSheetDialogFragment(), Injectable {
         } else {
             userName.gone()
         }
-        if (user.followers_count != null) {
-            userLayout.visible()
-            userFollowers.visible()
-            userFollowers.text = requireContext().getString(R.string.followers, TwitchApiHelper.formatCount(requireContext(), user.followers_count))
-            if (user.bannerImageURL != null) {
-                userFollowers.setTextColor(Color.LTGRAY)
-                userFollowers.setShadowLayer(4f, 0f, 0f, Color.BLACK)
-            }
-        } else {
-            userFollowers.gone()
-        }
         if (user.created_at != null) {
             userLayout.visible()
             userCreated.visible()
@@ -162,6 +167,17 @@ class MessageClickedDialog : ExpandingBottomSheetDialogFragment(), Injectable {
             }
         } else {
             userCreated.gone()
+        }
+        if (user.followedAt != null) {
+            userLayout.visible()
+            userFollowed.visible()
+            userFollowed.text = requireContext().getString(R.string.followed_at, TwitchApiHelper.formatTimeString(requireContext(), user.followedAt))
+            if (user.bannerImageURL != null) {
+                userFollowed.setTextColor(Color.LTGRAY)
+                userFollowed.setShadowLayer(4f, 0f, 0f, Color.BLACK)
+            }
+        } else {
+            userFollowed.gone()
         }
         if (!userImage.isVisible && !userName.isVisible) {
             viewProfile.visible()

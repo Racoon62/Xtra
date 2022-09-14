@@ -12,15 +12,15 @@ class TagGameStreamDataDeserializer : JsonDeserializer<TagGameStreamDataResponse
     @Throws(JsonParseException::class)
     override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): TagGameStreamDataResponse {
         val data = mutableListOf<Tag>()
-        val dataJson = json.asJsonObject.getAsJsonObject("data").getAsJsonObject("game").getAsJsonArray("tags")
-        dataJson.forEach {
-            val obj = it.asJsonObject
-            data.add(Tag(
-                    id = if (!(obj.get("id").isJsonNull)) { obj.getAsJsonPrimitive("id").asString } else null,
-                    name = if (!(obj.get("localizedName").isJsonNull)) { obj.getAsJsonPrimitive("localizedName").asString } else null,
-                    scope = if (!(obj.get("scope").isJsonNull)) { obj.getAsJsonPrimitive("scope").asString } else null,
-                )
-            )
+        val dataJson = json.asJsonObject?.getAsJsonObject("data")?.getAsJsonObject("game")?.getAsJsonArray("tags")
+        dataJson?.forEach { item ->
+            item?.asJsonObject?.let { obj ->
+                data.add(Tag(
+                    id = obj.get("id")?.takeIf { !it.isJsonNull }?.asString,
+                    name = obj.get("localizedName")?.takeIf { !it.isJsonNull }?.asString,
+                    scope = obj.get("scope")?.takeIf { !it.isJsonNull }?.asString,
+                ))
+            }
         }
         return TagGameStreamDataResponse(data)
     }

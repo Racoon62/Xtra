@@ -158,24 +158,30 @@
 
     <string-array name="languageEntries">
         <item>@string/lang_auto</item>
+        <item>@string/lang_in</item>
+        <item>@string/lang_de</item>
         <item>@string/lang_en</item>
-        <item>@string/lang_ar</item>
         <item>@string/lang_es</item>
-        <item>@string/lang_ja</item>
+        <item>@string/lang_fr</item>
         <item>@string/lang_pt</item>
-        <item>@string/lang_ru</item>
         <item>@string/lang_tr</item>
+        <item>@string/lang_ru</item>
+        <item>@string/lang_ar</item>
+        <item>@string/lang_ja</item>
     </string-array>
 
     <string-array name="language">
         <item>auto</item>
+        <item>in</item>
+        <item>de</item>
         <item>en</item>
-        <item>ar</item>
         <item>es</item>
-        <item>ja</item>
+        <item>fr</item>
         <item>pt</item>
-        <item>ru</item>
         <item>tr</item>
+        <item>ru</item>
+        <item>ar</item>
+        <item>ja</item>
     </string-array>
 
     <string-array name="cutoutmodeEntries">
@@ -241,6 +247,7 @@
         <item>العربية</item>
         <item>American sign language</item>
         <item>Български</item>
+        <item>Catalan</item>
         <item>čeština</item>
         <item>Dansk</item>
         <item>Deutsch</item>
@@ -249,21 +256,28 @@
         <item>Español</item>
         <item>Suomi</item>
         <item>Français</item>
+        <item>Hindi</item>
         <item>Magyar</item>
+        <item>Indonesian</item>
         <item>Italiano</item>
         <item>日本語</item>
         <item>한국어</item>
+        <item>Malay</item>
         <item>Nederlands</item>
         <item>Norsk</item>
         <item>Polski</item>
         <item>Português</item>
+        <item>Română</item>
         <item>Pусский</item>
         <item>Slovenčina</item>
         <item>Svenska</item>
         <item>ภาษาไทย</item>
+        <item>Tagalog</item>
         <item>Türkçe</item>
+        <item>Ukrainian</item>
         <item>Tiếng việt</item>
         <item>中文</item>
+        <item>Chinese (Hong Kong)</item>
         <item>@string/other</item>
     </string-array>
 
@@ -272,6 +286,7 @@
         <item>AR</item>
         <item>ASL</item>
         <item>BG</item>
+        <item>CA</item>
         <item>CS</item>
         <item>DA</item>
         <item>DE</item>
@@ -280,21 +295,28 @@
         <item>ES</item>
         <item>FI</item>
         <item>FR</item>
+        <item>HI</item>
         <item>HU</item>
+        <item>ID</item>
         <item>IT</item>
         <item>JA</item>
         <item>KO</item>
+        <item>MS</item>
         <item>NL</item>
         <item>NO</item>
         <item>PL</item>
         <item>PT</item>
+        <item>RO</item>
         <item>RU</item>
         <item>SK</item>
         <item>SV</item>
         <item>TH</item>
+        <item>TL</item>
         <item>TR</item>
+        <item>UK</item>
         <item>VI</item>
         <item>ZH</item>
+        <item>ZH_HK</item>
         <item>OTHER</item>
     </string-array>
 </resources>

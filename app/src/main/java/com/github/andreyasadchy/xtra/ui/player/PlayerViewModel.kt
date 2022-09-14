@@ -6,8 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.support.v4.media.session.MediaSessionCompat
 import android.util.Log
-import androidx.core.content.edit
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
@@ -19,6 +19,7 @@ import com.github.andreyasadchy.xtra.ui.player.stream.StreamPlayerViewModel
 import com.github.andreyasadchy.xtra.util.*
 import com.github.andreyasadchy.xtra.util.C
 import com.google.android.exoplayer2.*
+import com.google.android.exoplayer2.ext.mediasession.MediaSessionConnector
 import com.google.android.exoplayer2.source.MediaSource
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
 import com.google.android.exoplayer2.upstream.DefaultDataSource
@@ -66,6 +67,9 @@ abstract class PlayerViewModel(context: Application) : BaseAndroidViewModel(cont
     protected var isResumed = true
     var userLeaveHint = false
 
+    lateinit var mediaSession: MediaSessionCompat
+    lateinit var mediaSessionConnector: MediaSessionConnector
+
     private var timer: Timer? = null
     private val _sleepTimer = MutableLiveData<Boolean>()
     val sleepTimer: LiveData<Boolean>
@@ -75,11 +79,8 @@ abstract class PlayerViewModel(context: Application) : BaseAndroidViewModel(cont
         get() = timerEndTime - System.currentTimeMillis()
 
     init {
-        val speed = context.prefs().getFloat(C.PLAYER_SPEED, 1f)
-        if (speed != 1f) {
-            setSpeed(speed, false)
-        }
-        player.volume = context.prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
+        val volume = context.prefs().getInt(C.PLAYER_VOLUME, 100) / 100f
+        setVolume(volume)
     }
 
     fun setTimer(duration: Long) {
@@ -123,6 +124,8 @@ abstract class PlayerViewModel(context: Application) : BaseAndroidViewModel(cont
             player.setMediaSource(mediaSource)
             player.prepare()
             player.playWhenReady = true
+            mediaSessionConnector.setPlayer(player)
+            mediaSession.isActive = true
         }
     }
 
@@ -222,15 +225,15 @@ abstract class PlayerViewModel(context: Application) : BaseAndroidViewModel(cont
     override fun onCleared() {
         player.release()
         timer?.cancel()
+        mediaSessionConnector.setPlayer(null)
+        mediaSession.isActive = false
     }
 
-    open fun setSpeed(speed: Float, save: Boolean = true) {
+    fun setSpeed(speed: Float) {
         player.playbackParameters = PlaybackParameters(speed)
-        val context = getApplication<Application>()
-        if (save) context.prefs().edit { putFloat(C.PLAYER_SPEED, speed) }
     }
 
-    open fun setVolume(volume: Float) {
+    fun setVolume(volume: Float) {
         player.volume = volume
     }
 }

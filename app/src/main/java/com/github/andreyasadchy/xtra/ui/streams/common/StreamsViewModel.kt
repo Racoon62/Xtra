@@ -12,10 +12,12 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import com.github.andreyasadchy.xtra.model.User
+import com.github.andreyasadchy.xtra.model.helix.stream.Sort
 import com.github.andreyasadchy.xtra.model.helix.stream.Stream
 import com.github.andreyasadchy.xtra.repository.Listing
 import com.github.andreyasadchy.xtra.repository.LocalFollowGameRepository
 import com.github.andreyasadchy.xtra.repository.TwitchService
+import com.github.andreyasadchy.xtra.type.StreamSort
 import com.github.andreyasadchy.xtra.ui.common.PagedListViewModel
 import com.github.andreyasadchy.xtra.ui.common.follow.FollowLiveData
 import com.github.andreyasadchy.xtra.ui.common.follow.FollowViewModel
@@ -35,16 +37,37 @@ class StreamsViewModel @Inject constructor(
         if (it.gameId == null && it.gameName == null) {
             repository.loadTopStreams(it.helixClientId, it.helixToken, it.gqlClientId, it.tags, it.apiPref, it.thumbnailsEnabled, viewModelScope)
         } else {
-            repository.loadGameStreams(it.gameId, it.gameName, it.helixClientId, it.helixToken, it.gqlClientId, it.tags, it.gameApiPref, it.thumbnailsEnabled, viewModelScope)
+            repository.loadGameStreams(it.gameId, it.gameName, it.helixClientId, it.helixToken, it.gqlClientId,
+                when (it.sort) {
+                    Sort.VIEWERS_HIGH -> StreamSort.VIEWER_COUNT
+                    Sort.VIEWERS_LOW -> StreamSort.VIEWER_COUNT_ASC
+                    else -> null },
+                it.sort, it.tags, it.gameApiPref, it.thumbnailsEnabled, viewModelScope)
         }
     }
+    val sort: Sort?
+        get() = filter.value?.sort
 
     fun loadStreams(gameId: String? = null, gameName: String? = null, helixClientId: String? = null, helixToken: String? = null, gqlClientId: String? = null, tags: List<String>? = null, apiPref: ArrayList<Pair<Long?, String?>?>, gameApiPref: ArrayList<Pair<Long?, String?>?>, thumbnailsEnabled: Boolean = true) {
-        Filter(gameId, gameName, helixClientId, helixToken, gqlClientId, tags, apiPref, gameApiPref, thumbnailsEnabled).let {
+        Filter(
+            gameId = gameId,
+            gameName = gameName,
+            helixClientId = helixClientId,
+            helixToken = helixToken,
+            gqlClientId = gqlClientId,
+            tags = tags,
+            apiPref = apiPref,
+            gameApiPref = gameApiPref,
+            thumbnailsEnabled = thumbnailsEnabled
+        ).let {
             if (filter.value != it) {
                 filter.value = it
             }
         }
+    }
+
+    fun filter(sort: Sort) {
+        filter.value = filter.value?.copy(sort = sort)
     }
 
     private data class Filter(
@@ -53,6 +76,7 @@ class StreamsViewModel @Inject constructor(
         val helixClientId: String?,
         val helixToken: String?,
         val gqlClientId: String?,
+        val sort: Sort? = Sort.VIEWERS_HIGH,
         val tags: List<String>?,
         val apiPref: ArrayList<Pair<Long?, String?>?>,
         val gameApiPref: ArrayList<Pair<Long?, String?>?>,

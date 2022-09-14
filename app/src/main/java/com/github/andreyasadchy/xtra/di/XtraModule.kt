@@ -8,16 +8,17 @@ import com.github.andreyasadchy.xtra.api.*
 import com.github.andreyasadchy.xtra.model.chat.*
 import com.github.andreyasadchy.xtra.model.gql.channel.*
 import com.github.andreyasadchy.xtra.model.gql.clip.*
+import com.github.andreyasadchy.xtra.model.gql.emote.UserEmotesDataDeserializer
+import com.github.andreyasadchy.xtra.model.gql.emote.UserEmotesDataResponse
 import com.github.andreyasadchy.xtra.model.gql.followed.*
 import com.github.andreyasadchy.xtra.model.gql.game.*
 import com.github.andreyasadchy.xtra.model.gql.playlist.StreamPlaylistTokenDeserializer
 import com.github.andreyasadchy.xtra.model.gql.playlist.StreamPlaylistTokenResponse
 import com.github.andreyasadchy.xtra.model.gql.playlist.VideoPlaylistTokenDeserializer
 import com.github.andreyasadchy.xtra.model.gql.playlist.VideoPlaylistTokenResponse
-import com.github.andreyasadchy.xtra.model.gql.search.SearchChannelDataDeserializer
-import com.github.andreyasadchy.xtra.model.gql.search.SearchChannelDataResponse
-import com.github.andreyasadchy.xtra.model.gql.search.SearchGameDataDeserializer
-import com.github.andreyasadchy.xtra.model.gql.search.SearchGameDataResponse
+import com.github.andreyasadchy.xtra.model.gql.points.ChannelPointsContextDataDeserializer
+import com.github.andreyasadchy.xtra.model.gql.points.ChannelPointsContextDataResponse
+import com.github.andreyasadchy.xtra.model.gql.search.*
 import com.github.andreyasadchy.xtra.model.gql.stream.StreamDataDeserializer
 import com.github.andreyasadchy.xtra.model.gql.stream.StreamDataResponse
 import com.github.andreyasadchy.xtra.model.gql.stream.ViewersDataDeserializer
@@ -144,6 +145,7 @@ class XtraModule {
                 .registerTypeAdapter(GameDataResponse::class.java, GameDataDeserializer())
                 .registerTypeAdapter(StreamDataResponse::class.java, StreamDataDeserializer())
                 .registerTypeAdapter(ViewersDataResponse::class.java, ViewersDataDeserializer())
+                .registerTypeAdapter(ChannelHostingDataResponse::class.java, ChannelHostingDataDeserializer())
                 .registerTypeAdapter(GameStreamsDataResponse::class.java, GameStreamsDataDeserializer())
                 .registerTypeAdapter(GameVideosDataResponse::class.java, GameVideosDataDeserializer())
                 .registerTypeAdapter(GameClipsDataResponse::class.java, GameClipsDataDeserializer())
@@ -153,6 +155,7 @@ class XtraModule {
                 .registerTypeAdapter(EmoteCardResponse::class.java, EmoteCardDeserializer())
                 .registerTypeAdapter(SearchChannelDataResponse::class.java, SearchChannelDataDeserializer())
                 .registerTypeAdapter(SearchGameDataResponse::class.java, SearchGameDataDeserializer())
+                .registerTypeAdapter(SearchVideosDataResponse::class.java, SearchVideosDataDeserializer())
                 .registerTypeAdapter(TagGameDataResponse::class.java, TagGameDataDeserializer())
                 .registerTypeAdapter(TagGameStreamDataResponse::class.java, TagGameStreamDataDeserializer())
                 .registerTypeAdapter(TagStreamDataResponse::class.java, TagStreamDataDeserializer())
@@ -166,6 +169,8 @@ class XtraModule {
                 .registerTypeAdapter(FollowUserDataResponse::class.java, FollowUserDataDeserializer())
                 .registerTypeAdapter(FollowingUserDataResponse::class.java, FollowingUserDataDeserializer())
                 .registerTypeAdapter(FollowingGameDataResponse::class.java, FollowingGameDataDeserializer())
+                .registerTypeAdapter(ChannelPointsContextDataResponse::class.java, ChannelPointsContextDataDeserializer())
+                .registerTypeAdapter(UserEmotesDataResponse::class.java, UserEmotesDataDeserializer())
                 .create())
     }
 

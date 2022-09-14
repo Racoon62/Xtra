@@ -68,6 +68,7 @@ class VideoPlayerFragment : BasePlayerFragment(), HasDownloadDialog, ChatReplayP
         val playerMenu = requireView().findViewById<ImageButton>(R.id.playerMenu)
         val download = requireView().findViewById<ImageButton>(R.id.playerDownload)
         val gamesButton = requireView().findViewById<ImageButton>(R.id.playerGames)
+        val mode = requireView().findViewById<ImageButton>(R.id.playerMode)
         viewModel.loaded.observe(viewLifecycleOwner) {
             if (it) {
                 settings.enable()
@@ -100,15 +101,32 @@ class VideoPlayerFragment : BasePlayerFragment(), HasDownloadDialog, ChatReplayP
                 showDownloadDialog()
             }
         }
-        if (prefs.getBoolean(C.PLAYER_GAMESBUTTON, true)) {
-            viewModel.loadGamesList(prefs.getString(C.GQL_CLIENT_ID, ""), video.id).observe(viewLifecycleOwner) { list ->
+        if (prefs.getBoolean(C.PLAYER_GAMESBUTTON, true) || prefs.getBoolean(C.PLAYER_MENU_GAMES, false)) {
+            viewModel.loadGamesList(prefs.getString(C.GQL_CLIENT_ID, ""), video.id)
+            viewModel.gamesList.observe(viewLifecycleOwner) { list ->
                 if (list.isNotEmpty()) {
-                    gamesButton.visible()
-                    gamesButton.setOnClickListener { FragmentUtils.showPlayerGamesDialog(childFragmentManager, list) }
+                    if (prefs.getBoolean(C.PLAYER_GAMESBUTTON, true)) {
+                        gamesButton.visible()
+                        gamesButton.setOnClickListener { showVodGames() }
+                    }
                     (childFragmentManager.findFragmentByTag("closeOnPip") as? PlayerSettingsDialog?)?.setVodGames()
                 }
             }
         }
+        if (prefs.getBoolean(C.PLAYER_MODE, false)) {
+            mode.visible()
+            mode.setOnClickListener {
+                if (viewModel.playerMode.value != PlayerMode.AUDIO_ONLY) {
+                    startAudioOnly()
+                } else {
+                    viewModel.onResume()
+                }
+            }
+        }
+    }
+
+    fun showVodGames() {
+        viewModel.gamesList.value?.let { FragmentUtils.showPlayerGamesDialog(childFragmentManager, it) }
     }
 
     fun checkBookmark() {
@@ -120,7 +138,7 @@ class VideoPlayerFragment : BasePlayerFragment(), HasDownloadDialog, ChatReplayP
     }
 
     fun saveBookmark() {
-        viewModel.saveBookmark(requireContext(), prefs.getString(C.HELIX_CLIENT_ID, ""), prefs.getString(C.TOKEN, ""), prefs.getString(C.GQL_CLIENT_ID, ""))
+        viewModel.saveBookmark(requireContext(), prefs.getString(C.HELIX_CLIENT_ID, ""), User.get(requireContext()).helixToken, prefs.getString(C.GQL_CLIENT_ID, ""))
     }
 
     override fun onChange(requestCode: Int, index: Int, text: CharSequence, tag: Int?) {

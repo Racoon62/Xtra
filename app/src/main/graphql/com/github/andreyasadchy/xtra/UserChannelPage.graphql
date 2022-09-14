@@ -1,14 +1,18 @@
-query StreamUser($id: [ID!]) {
-    users(ids: $id) {
-        login
-        displayName
-        profileImageURL(width: 300)
+query UserChannelPage($id: ID, $login: String) {
+    user(id: $id, login: $login, lookupType: ALL) {
         bannerImageURL
-        profileViewCount
         createdAt
+        displayName
         followers {
             totalCount
         }
+        lastBroadcast {
+            startedAt
+        }
+        id
+        login
+        profileImageURL(width: 300)
+        profileViewCount
         roles {
             isAffiliate
             isGlobalMod
@@ -17,19 +21,15 @@ query StreamUser($id: [ID!]) {
             isStaff
         }
         stream {
-            id
-            type
-            title
-            viewersCount
             createdAt
-            previewImageURL
             game {
                 id
                 displayName
             }
-        }
-        lastBroadcast {
-            startedAt
+            id
+            title
+            type
+            viewersCount
         }
     }
 }

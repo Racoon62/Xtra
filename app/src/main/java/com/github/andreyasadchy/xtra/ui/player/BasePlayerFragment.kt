@@ -8,6 +8,7 @@ import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
+import android.support.v4.media.session.MediaSessionCompat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -16,13 +17,11 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.edit
-import androidx.core.view.isVisible
-import androidx.core.view.updateLayoutParams
+import androidx.core.view.*
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.RecyclerView
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.di.Injectable
-import com.github.andreyasadchy.xtra.model.NotLoggedIn
 import com.github.andreyasadchy.xtra.model.User
 import com.github.andreyasadchy.xtra.ui.common.AlertDialogFragment
 import com.github.andreyasadchy.xtra.ui.common.BaseNetworkFragment
@@ -35,6 +34,7 @@ import com.github.andreyasadchy.xtra.ui.player.stream.StreamPlayerFragment
 import com.github.andreyasadchy.xtra.ui.view.CustomPlayerView
 import com.github.andreyasadchy.xtra.ui.view.SlidingLayout
 import com.github.andreyasadchy.xtra.util.*
+import com.google.android.exoplayer2.ext.mediasession.MediaSessionConnector
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
 import kotlinx.android.synthetic.main.view_chat.view.*
 import kotlinx.coroutines.delay
@@ -80,16 +80,10 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), Injectable, Lifecycle
 
     private var chatWidthLandscape = 0
 
-    private var systemUiFlags = (View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            or View.SYSTEM_UI_FLAG_FULLSCREEN)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val activity = requireActivity()
         prefs = activity.prefs()
-        systemUiFlags = systemUiFlags or (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY)
         isPortrait = activity.isInPortraitOrientation
     }
 
@@ -101,6 +95,8 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), Injectable, Lifecycle
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        viewModel.mediaSession = MediaSessionCompat(requireContext(), requireContext().packageName)
+        viewModel.mediaSessionConnector = MediaSessionConnector(viewModel.mediaSession)
         view.keepScreenOn = true
         val activity = requireActivity() as MainActivity
         slidingLayout = view as SlidingLayout
@@ -182,7 +178,7 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), Injectable, Lifecycle
             if (!prefs.getBoolean(C.PLAYER_PAUSE, false)) {
                 view.findViewById<ImageButton>(R.id.exo_pause).layoutParams.height = 0
             }
-            if (User.get(activity) !is NotLoggedIn) {
+            if (!User.get(activity).login.isNullOrBlank() && (!User.get(activity).gqlToken.isNullOrBlank() || !User.get(activity).helixToken.isNullOrBlank())) {
                 if (prefs.getBoolean(C.PLAYER_CHATBARTOGGLE, false) && !disableChat) {
                     view.findViewById<ImageButton>(R.id.playerChatBarToggle).apply {
                         visible()
@@ -218,12 +214,16 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), Injectable, Lifecycle
             val rewindImage = when {
                 rewind <= 5000 -> R.drawable.baseline_replay_5_black_48
                 rewind <= 10000 -> R.drawable.baseline_replay_10_black_48
-                else -> R.drawable.baseline_replay_30_black_48
+                rewind <= 15000 -> R.drawable.baseline_replay_15_black_48
+                rewind <= 30000 -> R.drawable.baseline_replay_30_black_48
+                else -> R.drawable.baseline_replay_60_black_48
             }
             val forwardImage = when {
                 forward <= 5000 -> R.drawable.baseline_forward_5_black_48
                 forward <= 10000 -> R.drawable.baseline_forward_10_black_48
-                else -> R.drawable.baseline_forward_30_black_48
+                forward <= 15000 -> R.drawable.baseline_forward_15_black_48
+                forward <= 30000 -> R.drawable.baseline_forward_30_black_48
+                else -> R.drawable.baseline_forward_60_black_48
             }
             view.findViewById<ImageButton>(com.google.android.exoplayer2.ui.R.id.exo_rew).setImageResource(rewindImage)
             view.findViewById<ImageButton>(com.google.android.exoplayer2.ui.R.id.exo_ffwd).setImageResource(forwardImage)
@@ -348,6 +348,10 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), Injectable, Lifecycle
     }
 
     //    abstract fun play(obj: Parcelable) //TODO instead maybe add livedata in mainactivity and observe it
+
+    fun isSleepTimerActive(): Boolean {
+        return viewModel.timerTimeLeft > 0L
+    }
 
     fun setResizeMode() {
         resizeMode = (resizeMode + 1).let { if (it < 5) it else 0 }
@@ -497,14 +501,15 @@ abstract class BasePlayerFragment : BaseNetworkFragment(), Injectable, Lifecycle
     }
 
     private fun showStatusBar() {
-        if (isAdded) { //TODO this check might not be needed anymore AND ANDROID 5
-            requireActivity().window.decorView.systemUiVisibility = 0
-        }
+        WindowCompat.setDecorFitsSystemWindows(requireActivity().window, true)
+        WindowInsetsControllerCompat(requireActivity().window, requireActivity().window.decorView).show(WindowInsetsCompat.Type.systemBars())
     }
 
     private fun hideStatusBar() {
-        if (isAdded) {
-            requireActivity().window.decorView.systemUiVisibility = systemUiFlags
+        WindowCompat.setDecorFitsSystemWindows(requireActivity().window, false)
+        WindowInsetsControllerCompat(requireActivity().window, requireActivity().window.decorView).let { controller ->
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
     }
 

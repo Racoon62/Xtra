@@ -4,17 +4,21 @@ import android.util.Log
 import com.github.andreyasadchy.xtra.api.GraphQLApi
 import com.github.andreyasadchy.xtra.model.chat.EmoteCardResponse
 import com.github.andreyasadchy.xtra.model.gql.channel.ChannelClipsDataResponse
+import com.github.andreyasadchy.xtra.model.gql.channel.ChannelHostingDataResponse
 import com.github.andreyasadchy.xtra.model.gql.channel.ChannelVideosDataResponse
 import com.github.andreyasadchy.xtra.model.gql.channel.ChannelViewerListDataResponse
 import com.github.andreyasadchy.xtra.model.gql.clip.ClipDataResponse
 import com.github.andreyasadchy.xtra.model.gql.clip.ClipVideoResponse
+import com.github.andreyasadchy.xtra.model.gql.emote.UserEmotesDataResponse
 import com.github.andreyasadchy.xtra.model.gql.followed.*
 import com.github.andreyasadchy.xtra.model.gql.game.GameClipsDataResponse
 import com.github.andreyasadchy.xtra.model.gql.game.GameDataResponse
 import com.github.andreyasadchy.xtra.model.gql.game.GameStreamsDataResponse
 import com.github.andreyasadchy.xtra.model.gql.game.GameVideosDataResponse
+import com.github.andreyasadchy.xtra.model.gql.points.ChannelPointsContextDataResponse
 import com.github.andreyasadchy.xtra.model.gql.search.SearchChannelDataResponse
 import com.github.andreyasadchy.xtra.model.gql.search.SearchGameDataResponse
+import com.github.andreyasadchy.xtra.model.gql.search.SearchVideosDataResponse
 import com.github.andreyasadchy.xtra.model.gql.stream.StreamDataResponse
 import com.github.andreyasadchy.xtra.model.gql.stream.ViewersDataResponse
 import com.github.andreyasadchy.xtra.model.gql.tag.*
@@ -48,7 +52,17 @@ class GraphQLRepository @Inject constructor(private val graphQL: GraphQLApi) {
         }
         array.add(videoAccessTokenOperation)
         val response = graphQL.getClipUrls(clientId, array)
-        response.videos.associateBy({ if (it.frameRate < 60) "${it.quality}p" else "${it.quality}p${it.frameRate}" }, { it.url })
+        response.data.withIndex().associateBy({
+            if (!it.value.quality.isNullOrBlank()) {
+                if ((it.value.frameRate ?: 0) < 60) {
+                    "${it.value.quality}p"
+                } else {
+                    "${it.value.quality}p${it.value.frameRate}"
+                }
+            } else {
+                it.index.toString()
+            }
+        }, { it.value.url })
     }
 
     suspend fun loadClipData(clientId: String?, slug: String?): ClipDataResponse {
@@ -139,7 +153,7 @@ class GraphQLRepository @Inject constructor(private val graphQL: GraphQLApi) {
         return graphQL.getTopStreams(clientId, json)
     }
 
-    suspend fun loadGameStreams(clientId: String?, game: String?, tags: List<String>?, limit: Int?, cursor: String?): GameStreamsDataResponse {
+    suspend fun loadGameStreams(clientId: String?, game: String?, sort: String?, tags: List<String>?, limit: Int?, cursor: String?): GameStreamsDataResponse {
         val array = JsonArray()
         if (tags != null) {
             for (i in tags) {
@@ -154,7 +168,7 @@ class GraphQLRepository @Inject constructor(private val graphQL: GraphQLApi) {
                 addProperty("name", game)
                 addProperty("sortTypeIsRecency", false)
                 add("options", JsonObject().apply {
-                    addProperty("sort", "VIEWER_COUNT")
+                    addProperty("sort", sort)
                     add("tags", array)
                 })
             })
@@ -316,6 +330,30 @@ class GraphQLRepository @Inject constructor(private val graphQL: GraphQLApi) {
         return graphQL.getSearchGames(clientId, json)
     }
 
+    suspend fun loadSearchVideos(clientId: String?, query: String?, cursor: String?): SearchVideosDataResponse {
+        val json = JsonObject().apply {
+            addProperty("operationName", "SearchResultsPage_SearchResults")
+            add("variables", JsonObject().apply {
+                add("options", JsonObject().apply {
+                    add("targets", JsonArray().apply {
+                        add(JsonObject().apply {
+                            addProperty("cursor", cursor)
+                            addProperty("index", "VOD")
+                        })
+                    })
+                })
+                addProperty("query", query)
+            })
+            add("extensions", JsonObject().apply {
+                add("persistedQuery", JsonObject().apply {
+                    addProperty("version", 1)
+                    addProperty("sha256Hash", "ee977ac21b324669b4c109be49ed3032227e8850bea18503d0ced68e8156c2a5")
+                })
+            })
+        }
+        return graphQL.getSearchVideos(clientId, json)
+    }
+
     suspend fun loadGameTags(clientId: String?): TagGameDataResponse {
         val json = JsonObject().apply {
             addProperty("operationName", "SearchCategoryTags")
@@ -419,11 +457,11 @@ class GraphQLRepository @Inject constructor(private val graphQL: GraphQLApi) {
         return graphQL.getVodGames(clientId, json)
     }
 
-    suspend fun loadViewerCount(clientId: String?, channel: String?): ViewersDataResponse {
+    suspend fun loadViewerCount(clientId: String?, channelLogin: String?): ViewersDataResponse {
         val json = JsonObject().apply {
             addProperty("operationName", "UseViewCount")
             add("variables", JsonObject().apply {
-                addProperty("channelLogin", channel)
+                addProperty("channelLogin", channelLogin)
             })
             add("extensions", JsonObject().apply {
                 add("persistedQuery", JsonObject().apply {
@@ -433,6 +471,22 @@ class GraphQLRepository @Inject constructor(private val graphQL: GraphQLApi) {
             })
         }
         return graphQL.getViewerCount(clientId, json)
+    }
+
+    suspend fun loadChannelHosting(clientId: String?, channelLogin: String?): ChannelHostingDataResponse {
+        val json = JsonObject().apply {
+            addProperty("operationName", "UseHosting")
+            add("variables", JsonObject().apply {
+                addProperty("channelLogin", channelLogin)
+            })
+            add("extensions", JsonObject().apply {
+                add("persistedQuery", JsonObject().apply {
+                    addProperty("version", 1)
+                    addProperty("sha256Hash", "427f55a3daca510f726c02695a898ef3a0de4355b39af328848876052ea6b337")
+                })
+            })
+        }
+        return graphQL.getChannelHosting(clientId, json)
     }
 
     suspend fun loadEmoteCard(clientId: String?, emoteId: String?): EmoteCardResponse {
@@ -625,6 +679,76 @@ class GraphQLRepository @Inject constructor(private val graphQL: GraphQLApi) {
             })
         }
         return graphQL.getFollowingGame(clientId, token, json)
+    }
+
+    suspend fun loadChannelPointsContext(clientId: String?, token: String?, channelLogin: String?): ChannelPointsContextDataResponse {
+        val json = JsonObject().apply {
+            addProperty("operationName", "ChannelPointsContext")
+            add("variables", JsonObject().apply {
+                addProperty("channelLogin", channelLogin)
+            })
+            add("extensions", JsonObject().apply {
+                add("persistedQuery", JsonObject().apply {
+                    addProperty("version", 1)
+                    addProperty("sha256Hash", "1530a003a7d374b0380b79db0be0534f30ff46e61cffa2bc0e2468a909fbc024")
+                })
+            })
+        }
+        return graphQL.getChannelPointsContext(clientId, token, json)
+    }
+
+    suspend fun loadClaimPoints(clientId: String?, token: String?, channelId: String?, claimId: String?) {
+        val json = JsonObject().apply {
+            addProperty("operationName", "ClaimCommunityPoints")
+            add("variables", JsonObject().apply {
+                add("input", JsonObject().apply {
+                    addProperty("channelID", channelId)
+                    addProperty("claimID", claimId)
+                })
+            })
+            add("extensions", JsonObject().apply {
+                add("persistedQuery", JsonObject().apply {
+                    addProperty("version", 1)
+                    addProperty("sha256Hash", "46aaeebe02c99afdf4fc97c7c0cba964124bf6b0af229395f1f6d1feed05b3d0")
+                })
+            })
+        }
+        return graphQL.getClaimPoints(clientId, token, json)
+    }
+
+    suspend fun loadJoinRaid(clientId: String?, token: String?, raidId: String?) {
+        val json = JsonObject().apply {
+            addProperty("operationName", "JoinRaid")
+            add("variables", JsonObject().apply {
+                add("input", JsonObject().apply {
+                    addProperty("raidID", raidId)
+                })
+            })
+            add("extensions", JsonObject().apply {
+                add("persistedQuery", JsonObject().apply {
+                    addProperty("version", 1)
+                    addProperty("sha256Hash", "c6a332a86d1087fbbb1a8623aa01bd1313d2386e7c63be60fdb2d1901f01a4ae")
+                })
+            })
+        }
+        return graphQL.getJoinRaid(clientId, token, json)
+    }
+
+    suspend fun loadUserEmotes(clientId: String?, token: String?, channelId: String?): UserEmotesDataResponse {
+        val json = JsonObject().apply {
+            addProperty("operationName", "AvailableEmotesForChannel")
+            add("variables", JsonObject().apply {
+                addProperty("channelID", channelId)
+                addProperty("withOwner", true)
+            })
+            add("extensions", JsonObject().apply {
+                add("persistedQuery", JsonObject().apply {
+                    addProperty("version", 1)
+                    addProperty("sha256Hash", "b9ce64d02e26c6fe9adbfb3991284224498b295542f9c5a51eacd3610e659cfb")
+                })
+            })
+        }
+        return graphQL.getUserEmotes(clientId, token, json)
     }
 
     suspend fun loadChannelPanel(channelId: String): String? = withContext(Dispatchers.IO) {

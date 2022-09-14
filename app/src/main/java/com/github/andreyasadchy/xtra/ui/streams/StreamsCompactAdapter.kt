@@ -23,7 +23,7 @@ class StreamsCompactAdapter(
         with(view) {
             if (item.viewer_count != null) {
                 viewers.visible()
-                viewers.text = TwitchApiHelper.formatCount(context, item.viewer_count)
+                viewers.text = TwitchApiHelper.formatCount(context, item.viewer_count ?: 0)
             } else {
                 viewers.gone()
             }
@@ -49,7 +49,7 @@ class StreamsCompactAdapter(
             } else {
                 uptime.gone()
             }
-            if (item.tags != null && context.prefs().getBoolean(C.UI_TAGS, true)) {
+            if (!item.tags.isNullOrEmpty() && context.prefs().getBoolean(C.UI_TAGS, true)) {
                 tagsLayout.removeAllViews()
                 tagsLayout.visible()
                 for (tag in item.tags) {

@@ -22,10 +22,15 @@ class StreamsAdapter(
     override fun bind(item: Stream, view: View) {
         super.bind(item, view)
         with(view) {
-            thumbnail.loadImage(fragment, item.thumbnail, true, diskCacheStrategy = DiskCacheStrategy.NONE)
+            if (item.thumbnail_url != null) {
+                thumbnail.visible()
+                thumbnail.loadImage(fragment, item.thumbnail, true, diskCacheStrategy = DiskCacheStrategy.NONE)
+            } else {
+                thumbnail.gone()
+            }
             if (item.viewer_count != null) {
                 viewers.visible()
-                viewers.text = TwitchApiHelper.formatViewersCount(context, item.viewer_count)
+                viewers.text = TwitchApiHelper.formatViewersCount(context, item.viewer_count ?: 0)
             } else {
                 viewers.gone()
             }
@@ -51,7 +56,7 @@ class StreamsAdapter(
             } else {
                 uptime.gone()
             }
-            if (item.tags != null && context.prefs().getBoolean(C.UI_TAGS, true)) {
+            if (!item.tags.isNullOrEmpty() && context.prefs().getBoolean(C.UI_TAGS, true)) {
                 tagsLayout.removeAllViews()
                 tagsLayout.visible()
                 for (tag in item.tags) {

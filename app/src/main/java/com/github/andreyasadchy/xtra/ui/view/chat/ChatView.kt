@@ -21,15 +21,17 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.model.chat.*
+import com.github.andreyasadchy.xtra.model.helix.stream.Stream
 import com.github.andreyasadchy.xtra.ui.common.ChatAdapter
 import com.github.andreyasadchy.xtra.ui.view.SlidingLayout
 import com.github.andreyasadchy.xtra.util.*
 import com.github.andreyasadchy.xtra.util.chat.Command
+import com.github.andreyasadchy.xtra.util.chat.PointsEarned
+import com.github.andreyasadchy.xtra.util.chat.Raid
 import com.github.andreyasadchy.xtra.util.chat.RoomState
 import kotlinx.android.extensions.LayoutContainer
 import kotlinx.android.synthetic.main.auto_complete_emotes_list_item.view.*
 import kotlinx.android.synthetic.main.view_chat.view.*
-import java.util.*
 import kotlin.math.max
 
 var MAX_ADAPTER_COUNT = 200
@@ -41,6 +43,13 @@ class ChatView : ConstraintLayout {
 
     interface MessageSenderCallback {
         fun send(message: CharSequence)
+    }
+
+    interface RaidCallback {
+        fun onRaidClicked()
+        fun onRaidClose()
+        fun onHostClicked()
+        fun onCheckHost()
     }
 
     private lateinit var adapter: ChatAdapter
@@ -58,6 +67,7 @@ class ChatView : ConstraintLayout {
     private var messagingEnabled = false
 
     private var messageCallback: MessageSenderCallback? = null
+    private var raidCallback: RaidCallback? = null
 
     private val rewardList = mutableListOf<Pair<LiveChatMessage?, PubSubPointReward?>>()
 
@@ -152,8 +162,6 @@ class ChatView : ConstraintLayout {
                 "0" -> textEmote.gone()
                 "1" -> textEmote.visible()
             }
-        } else {
-            textEmote.gone()
         }
         if (roomState.followers != null) {
             when (roomState.followers) {
@@ -167,16 +175,12 @@ class ChatView : ConstraintLayout {
                     textFollowers.visible()
                 }
             }
-        } else {
-            textFollowers.gone()
         }
         if (roomState.unique != null) {
             when (roomState.unique) {
                 "0" -> textUnique.gone()
                 "1" -> textUnique.visible()
             }
-        } else {
-            textUnique.gone()
         }
         if (roomState.slow != null) {
             when (roomState.slow) {
@@ -186,16 +190,12 @@ class ChatView : ConstraintLayout {
                     textSlow.visible()
                 }
             }
-        } else {
-            textSlow.gone()
         }
         if (roomState.subs != null) {
             when (roomState.subs) {
                 "0" -> textSubs.gone()
                 "1" -> textSubs.visible()
             }
-        } else {
-            textSubs.gone()
         }
         if (textEmote.isGone && textFollowers.isGone && textUnique.isGone && textSlow.isGone && textSubs.isGone) {
             showFlexbox = false
@@ -208,20 +208,25 @@ class ChatView : ConstraintLayout {
     }
 
     fun notifyCommand(command: Command) {
-        val lang = Locale.getDefault().language
         val message = when (command.type) {
             "join" -> context.getString(R.string.chat_join, command.message)
             "disconnect" -> context.getString(R.string.chat_disconnect, command.message, command.duration)
             "disconnect_command" -> {
+                raidCallback?.onRaidClose()
+                hideRaid()
+                notifyRoomState(RoomState("0", "-1", "0", "0", "0"))
                 adapter.messages?.clear()
                 context.getString(R.string.disconnected)
             }
             "send_msg_error" -> context.getString(R.string.chat_send_msg_error, command.message)
             "socket_error" -> context.getString(R.string.chat_socket_error, command.message)
-            "notice" -> if (lang == "ar" || lang == "es" || lang == "ja" || lang == "pt" || lang == "ru" || lang == "tr") {
-                TwitchApiHelper.getNoticeString(context, command.duration, command.message) ?: command.message
-            } else {
-                command.message
+            "notice" -> {
+                when (command.duration) { // msg-id
+                    "host_on" -> raidCallback?.onCheckHost()
+                    "host_off" -> hideRaid()
+                    "unraid_success" -> hideRaid()
+                }
+                TwitchApiHelper.getNoticeString(context, command.duration, command.message)
             }
             "clearmsg" -> context.getString(R.string.chat_clearmsg, command.message, command.duration)
             "clearchat" -> context.getString(R.string.chat_clear)
@@ -229,7 +234,7 @@ class ChatView : ConstraintLayout {
             "ban" -> context.getString(R.string.chat_ban, command.message)
             else -> command.message
         }
-        adapter.messages?.add(LiveChatMessage(message = message, color = "#999999", isAction = true, emotes = command.emotes, timestamp = command.timestamp, fullMsg = command.fullMsg))
+        adapter.messages?.add(LiveChatMessage(message = message, color = "#999999", isAction = true, emotes = command.emotes, timestamp = command.timestamp, fullMsg = command.fullMsg, isHostMsg = command.duration == "host_on"))
         notifyMessageAdded()
     }
 
@@ -259,6 +264,50 @@ class ChatView : ConstraintLayout {
                 }
             }
         }
+    }
+
+    fun notifyPointsEarned(points: PointsEarned) {
+        val message = context.getString(R.string.points_earned, points.pointsGained)
+        adapter.messages?.add(LiveChatMessage(message = message, color = "#999999", isAction = true, timestamp = points.timestamp, fullMsg = points.fullMsg))
+        notifyMessageAdded()
+    }
+
+    fun notifyRaid(raid: Raid, newId: Boolean) {
+        if (newId) {
+            raidLayout.visible()
+            raidLayout.setOnClickListener { raidCallback?.onRaidClicked() }
+            raidImage.visible()
+            raidImage.loadImage(fragment, raid.targetLogo, circle = true)
+            raidText.visible()
+            raidClose.visible()
+            raidClose.setOnClickListener {
+                raidCallback?.onRaidClose()
+                hideRaid()
+            }
+        }
+        raidText.text = context.getString(R.string.raid_text, raid.targetName, raid.viewerCount)
+    }
+
+    fun hideRaid() {
+        raidLayout.gone()
+        raidImage.gone()
+        raidText.gone()
+        raidClose.gone()
+    }
+
+    fun notifyHost(stream: Stream) {
+        raidLayout.visible()
+        raidLayout.setOnClickListener { raidCallback?.onHostClicked() }
+        if (!stream.channelLogo.isNullOrBlank()) {
+            raidImage.visible()
+            raidImage.loadImage(fragment, stream.channelLogo, circle = true)
+        } else {
+            raidImage.gone()
+        }
+        raidText.visible()
+        raidText.text = context.getString(R.string.host_text, stream.user_name)
+        raidClose.visible()
+        raidClose.setOnClickListener { hideRaid() }
     }
 
     fun addRecentMessages(list: List<LiveChatMessage>) {
@@ -316,16 +365,21 @@ class ChatView : ConstraintLayout {
         adapter.setUsername(username)
     }
 
-    fun setChatters(chatters: Collection<Chatter>) {
-        autoCompleteList = chatters.toMutableList()
+    fun setChannelId(channelId: String?) {
+        adapter.setChannelId(channelId)
+    }
+
+    fun setChatters(chatters: Collection<Chatter>?) {
+        autoCompleteList = chatters?.toMutableList()
     }
 
     fun addChatter(chatter: Chatter) {
         autoCompleteAdapter?.add(chatter)
     }
 
-    fun setCallback(callback: MessageSenderCallback) {
-        messageCallback = callback
+    fun setCallback(callbackMessage: MessageSenderCallback, callbackRaid: RaidCallback?) {
+        messageCallback = callbackMessage
+        raidCallback = callbackRaid
     }
 
     fun hideEmotesMenu(): Boolean {
@@ -356,10 +410,10 @@ class ChatView : ConstraintLayout {
     }
 
     fun enableChatInteraction(enableMessaging: Boolean) {
-        adapter.setOnClickListener { original, formatted, userId, fullMsg ->
+        adapter.setOnClickListener { original, formatted, userId, channelId, host, fullMsg ->
             editText.hideKeyboard()
             editText.clearFocus()
-            MessageClickedDialog.newInstance(enableMessaging, original, formatted, userId, fullMsg).show(fragment.childFragmentManager, "closeOnPip")
+            MessageClickedDialog.newInstance(enableMessaging, original, formatted, userId, channelId, host, fullMsg).show(fragment.childFragmentManager, "closeOnPip")
         }
         if (enableMessaging) {
             editText.addTextChangedListener(onTextChanged = { text, _, _, _ ->

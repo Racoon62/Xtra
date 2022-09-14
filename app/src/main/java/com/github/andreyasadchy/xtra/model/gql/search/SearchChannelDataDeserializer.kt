@@ -12,19 +12,20 @@ class SearchChannelDataDeserializer : JsonDeserializer<SearchChannelDataResponse
     @Throws(JsonParseException::class)
     override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): SearchChannelDataResponse {
         val data = mutableListOf<ChannelSearch>()
-        var cursor: String? = null
-        val dataJson = json.asJsonObject.getAsJsonObject("data").getAsJsonObject("searchFor").getAsJsonObject("channels").getAsJsonArray("edges")
-        dataJson.forEach {
-            cursor = if (!json.asJsonObject.getAsJsonObject("data").getAsJsonObject("searchFor").getAsJsonObject("channels").get("cursor").isJsonNull) json.asJsonObject.getAsJsonObject("data").getAsJsonObject("searchFor").getAsJsonObject("channels").getAsJsonPrimitive("cursor").asString else null
-            val obj = it.asJsonObject.getAsJsonObject("item")
-            data.add(ChannelSearch(
-                    id = if (!(obj.get("id").isJsonNull)) { obj.getAsJsonPrimitive("id").asString } else null,
-                    broadcaster_login = if (!(obj.get("login").isJsonNull)) { obj.getAsJsonPrimitive("login").asString } else null,
-                    display_name = if (!(obj.get("displayName").isJsonNull)) { obj.getAsJsonPrimitive("displayName").asString } else null,
-                    profileImageURL = if (!(obj.get("profileImageURL").isJsonNull)) { obj.getAsJsonPrimitive("profileImageURL").asString } else null,
-                    followers_count = if (!(obj.get("followers").isJsonNull)) { obj.getAsJsonObject("followers").getAsJsonPrimitive("totalCount").asInt } else null,
-                )
-            )
+        val dataJson = json.asJsonObject?.getAsJsonObject("data")?.getAsJsonObject("searchFor")?.getAsJsonObject("channels")
+        val cursor = dataJson?.get("cursor")?.takeIf { !it.isJsonNull }?.asString
+        dataJson?.getAsJsonArray("edges")?.forEach { item ->
+            item?.asJsonObject?.getAsJsonObject("item")?.let { obj ->
+                data.add(ChannelSearch(
+                    id = obj.get("id")?.takeIf { !it.isJsonNull }?.asString,
+                    broadcaster_login = obj.get("login")?.takeIf { !it.isJsonNull }?.asString,
+                    display_name = obj.get("displayName")?.takeIf { !it.isJsonNull }?.asString,
+                    is_live = obj.get("stream")?.isJsonObject,
+                    thumbnail_url = obj.get("profileImageURL")?.takeIf { !it.isJsonNull }?.asString,
+                    followers_count = obj.get("followers")?.takeIf { it.isJsonObject }?.asJsonObject?.get("totalCount")?.takeIf { !it.isJsonNull }?.asInt,
+                    type = obj.get("stream")?.takeIf { it.isJsonObject }?.asJsonObject?.get("type")?.takeIf { !it.isJsonNull }?.asString,
+                ))
+            }
         }
         return SearchChannelDataResponse(data, cursor)
     }

@@ -12,26 +12,25 @@ import com.google.gson.JsonDeserializer
 import com.google.gson.JsonElement
 import com.google.gson.JsonParseException
 import java.lang.reflect.Type
-import java.util.*
 
 class RecentMessagesDeserializer : JsonDeserializer<RecentMessagesResponse> {
 
     @Throws(JsonParseException::class)
     override fun deserialize(json: JsonElement, typeOfT: Type, context: JsonDeserializationContext): RecentMessagesResponse {
         val messages = mutableListOf<LiveChatMessage>()
-        for (i in json.asJsonObject.getAsJsonArray("messages")) {
-            val appContext = XtraApp.INSTANCE.applicationContext
-            val message = i.asString
-            val chatMsg = when {
-                message.contains("PRIVMSG") -> onMessage(appContext, message, false)
-                message.contains("USERNOTICE") -> onMessage(appContext, message, true)
-                message.contains("CLEARMSG") -> onClearMessage(appContext, message)
-                message.contains("CLEARCHAT") -> onClearChat(appContext, message)
-                message.contains("NOTICE") -> onNotice(appContext, message)
-                else -> null
-            }
-            if (chatMsg != null) {
-                messages.add(chatMsg)
+        json.asJsonObject?.getAsJsonArray("messages")?.forEach {
+            it?.asString?.let { message ->
+                val appContext = XtraApp.INSTANCE.applicationContext
+                when {
+                    message.contains("PRIVMSG") -> onMessage(appContext, message, false)
+                    message.contains("USERNOTICE") -> onMessage(appContext, message, true)
+                    message.contains("CLEARMSG") -> onClearMessage(appContext, message)
+                    message.contains("CLEARCHAT") -> onClearChat(appContext, message)
+                    message.contains("NOTICE") -> onNotice(appContext, message)
+                    else -> null
+                }?.let { chatMsg ->
+                    messages.add(chatMsg)
+                }
             }
         }
         return RecentMessagesResponse(messages)
@@ -175,13 +174,8 @@ class RecentMessagesDeserializer : JsonDeserializer<RecentMessagesResponse> {
         val msgIndex = messageInfo.indexOf(":", messageInfo.indexOf(":") + 1)
         val index2 = messageInfo.indexOf(" ", messageInfo.indexOf("#") + 1)
         val msg = messageInfo.substring(if (msgIndex != -1) msgIndex + 1 else index2 + 1)
-        val lang = Locale.getDefault().language
         return LiveChatMessage(
-            message = if (lang == "ar" || lang == "es" || lang == "ja" || lang == "pt" || lang == "ru") {
-                TwitchApiHelper.getNoticeString(context, msgId, msg) ?: msg
-            } else {
-                msg
-            },
+            message = TwitchApiHelper.getNoticeString(context, msgId, msg),
             color = "#999999",
             isAction = true,
             fullMsg = message

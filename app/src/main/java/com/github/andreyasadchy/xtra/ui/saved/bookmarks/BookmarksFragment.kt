@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
 import com.github.andreyasadchy.xtra.R
 import com.github.andreyasadchy.xtra.di.Injectable
+import com.github.andreyasadchy.xtra.model.User
 import com.github.andreyasadchy.xtra.ui.common.Scrollable
 import com.github.andreyasadchy.xtra.ui.download.VideoDownloadDialog
 import com.github.andreyasadchy.xtra.ui.main.MainActivity
@@ -33,6 +34,7 @@ class BookmarksFragment : Fragment(), Injectable, Scrollable {
         return inflater.inflate(R.layout.fragment_saved, container, false)
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
         val activity = requireActivity() as MainActivity
@@ -40,7 +42,7 @@ class BookmarksFragment : Fragment(), Injectable, Scrollable {
             viewModel.loadVideo(
                 context = requireContext(),
                 helixClientId = requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""),
-                helixToken = requireContext().prefs().getString(C.TOKEN, ""),
+                helixToken = User.get(requireContext()).helixToken,
                 gqlClientId = requireContext().prefs().getString(C.GQL_CLIENT_ID, ""),
                 videoId = it
             )
@@ -74,15 +76,15 @@ class BookmarksFragment : Fragment(), Injectable, Scrollable {
             }
             viewModel.loadUsers(
                 helixClientId = requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""),
-                helixToken = requireContext().prefs().getString(C.TOKEN, ""),
+                helixToken = User.get(requireContext()).helixToken,
                 gqlClientId = requireContext().prefs().getString(C.GQL_CLIENT_ID, ""),
             )
         }
-        if (!requireContext().prefs().getString(C.TOKEN, "").isNullOrBlank()) {
+        if (!User.get(requireContext()).helixToken.isNullOrBlank()) {
             viewModel.loadVideos(
                 context = requireContext(),
                 helixClientId = requireContext().prefs().getString(C.HELIX_CLIENT_ID, ""),
-                helixToken = requireContext().prefs().getString(C.TOKEN, ""),
+                helixToken = User.get(requireContext()).helixToken,
             )
         }
         adapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
@@ -103,6 +105,7 @@ class BookmarksFragment : Fragment(), Injectable, Scrollable {
         recyclerView?.scrollToPosition(0)
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 3 && resultCode == Activity.RESULT_OK) {
